@@ -25,14 +25,11 @@ class NRSScript(scripts.Script):
     
     def ui(self, *args, **kwargs):
         with gr.Accordion(open=False, label=self.title()):
-            gr.HTML("<p><i>Adjust the settings for Negative Rejection Steering.</i></p>")
             enabled = gr.Checkbox(label="Enable NRS", value=self.enabled)
-            gr.HTML("<p><i>Adjust the amount guidance is steered.</i></p>")
-            skew = gr.Slider(label="NRS Skew Scale", minimum=-30.0, maximum=30.0, step=0.01, value=self.skew)
-            gr.HTML("<p><i>Adjust the amount guidance is amplified.</i></p>")
-            stretch = gr.Slider(label="NRS Stretch Scale", minimum=-30.0, maximum=30.0, step=0.01, value=self.stretch)
-            gr.HTML("<p><i>Adjust the amount final guidance is normalized.</i></p>")
-            squash = gr.Slider(label="NRS Squash Multiplier", minimum=0.0, maximum=1.0, step=0.01, value=self.squash)
+            gr.HTML("<p><i>Adjust the settings for Negative Rejection Steering.</i></p>")
+            skew = gr.Slider(label="NRS Skew Scale", info="Adjusts the amount guidance is steered.", minimum=-30.0, maximum=30.0, step=0.01, value=self.skew)
+            stretch = gr.Slider(label="NRS Stretch Scale", info="Adjusts the amount guidance is amplified.", minimum=-30.0, maximum=30.0, step=0.01, value=self.stretch)
+            squash = gr.Slider(label="NRS Squash Multiplier", info="Adjusts the amount final guidance is normalized.", minimum=0.0, maximum=1.0, step=0.01, value=self.squash)
 
         enabled.change(
             lambda x: self.update_enabled(x),
