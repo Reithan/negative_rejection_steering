@@ -28,6 +28,42 @@ Squash should initially be set to 0%, then adjusted based on 'burn' of output.
 - **Stretch** changes to 'amplification' of generation, which should result in stronger prompt representation.
 - **Squash** 'normalizes' the resulting guidance back towards the original amplitude. This results in a removal of 'burn-in' and artifacting of the output, transforming these defects into alternative guidance.
 
+## Parameter Precision and Advanced Controls
+
+Recent updates have introduced finer control over NRS parameters and new advanced options for more precise tuning.
+
+### Parameter Precision Update
+
+The core parameters—**Skew**, **Stretch**, and **Squash**—now support more granular adjustments. For instance, in environments like ComfyUI, their step value has been decreased from `0.01` to `0.001`. This allows for very fine-tuned control, which can be particularly useful when seeking subtle changes in image composition or artifact reduction.
+
+### Advanced Parameters
+
+These parameters offer deeper control over the NRS algorithm's components. It's generally recommended to start with the default values and adjust them cautiously once you are familiar with the effects of the primary Skew, Stretch, and Squash parameters.
+
+*   **Rejection Strength (`rejection_strength`)**
+    *   **Purpose**: Modulates the intensity of the rejection vector (`u_rej_c`) used in the Skewing step. This vector represents the aspects of the unconditioned tensor that are orthogonal to the conditioned tensor.
+    *   **Default**: `1.0`
+    *   **Range**: `0.0` to `5.0`
+    *   **Usage**: Increasing this value amplifies the effect of the `skew` parameter by strengthening the influence of the rejection component. If you find the `skew` effect too subtle or too strong at its default, you can fine-tune it here. For example, a higher `rejection_strength` will make the `skew` parameter more sensitive.
+
+*   **Projection Difference Strength (`projection_diff_strength`)**
+    *   **Purpose**: Modulates the intensity of the projection difference vector (`proj_diff`) used in the Stretching step. This vector (`cond - u_on_c`) captures how much the conditioned tensor already diverges from the unconditioned tensor in its own direction.
+    *   **Default**: `1.0`
+    *   **Range**: `0.0` to `5.0`
+    *   **Usage**: This parameter scales the `proj_diff` component before it's multiplied by the main `stretch` parameter. If `stretch` seems to be affecting the image too aggressively or not enough, adjusting `projection_diff_strength` can provide a more calibrated response. It allows you to control how much of the "difference" aspect is factored into the stretch.
+
+*   **Squash Target Length Factor (`squash_target_length_factor`)**
+    *   **Purpose**: Adjusts the target length for the Squashing step. Instead of always squashing towards the original length of the conditioned tensor, this factor allows you to aim for a length that is a multiple of the original (e.g., 0.8x or 1.2x the original length).
+    *   **Default**: `1.0` (targets the original conditioned tensor's length)
+    *   **Range**: `0.5` to `2.0`
+    *   **Usage**: If you find that squashing to the exact original length is too restrictive or not aggressive enough in controlling "burn-in," you can use this factor. A value less than 1.0 will squash towards a shorter vector, potentially reducing energy/burn-in more. A value greater than 1.0 will allow for a slightly longer vector than the original `cond` after squashing, which might be useful if the default squashing feels too dampening.
+
+*   **NRS Effect Blend (`nrs_effect_blend`)**
+    *   **Purpose**: Linearly interpolates between the original conditioned tensor (after initial rescaling for v-prediction models) and the fully processed NRS tensor. This allows you to "blend" the NRS effect with the standard CFG-like guidance.
+    *   **Default**: `1.0` (applies 100% of the NRS effect)
+    *   **Range**: `0.0` to `1.0`
+    *   **Usage**: If the full NRS effect is too strong or introduces undesired changes, you can reduce this value to mix it with the more standard guidance. A value of `0.0` would effectively bypass the NRS modifications (Stretch, Skew, Squash), while `0.5` would be an even mix. This provides a global way to temper the overall NRS adjustments.
+
 ## Beginner How-To
 1. Set Skew to your normal CFG Scale setting and Stretch to 1/2 your normal CFG Scale.
 2. Set Squash to 0.0.
