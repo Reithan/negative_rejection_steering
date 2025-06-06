@@ -203,8 +203,8 @@ class NRSEpsilon:
 
             #rescale cfg has to be done on v-pred model output
             x = x_orig # Changed for EpsilonPred
-            cond = ((x - (x_orig - cond)) * (sigma ** 2 + 1.0) ** 0.5) / (sigma)
-            uncond = ((x - (x_orig - uncond)) * (sigma ** 2 + 1.0) ** 0.5) / (sigma)
+            cond = args["cond"]
+            uncond = args["uncond"]
             logging.debug(f"NRS.nrs: generated cond and uncond")
 
             x_final = None
