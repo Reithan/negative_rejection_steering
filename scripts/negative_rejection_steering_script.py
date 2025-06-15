@@ -14,6 +14,7 @@ class NRSScript(scripts.Script):
         self.skew = 4.0
         self.stretch = 2.0
         self.squash = 0.0
+        self.normalize_strength = 0.0
 
     sorting_priority = 5
 
@@ -30,21 +31,22 @@ class NRSScript(scripts.Script):
             skew = gr.Slider(label="NRS Skew Scale", info="Adjusts the amount guidance is steered.", minimum=-30.0, maximum=30.0, step=0.01, value=self.skew)
             stretch = gr.Slider(label="NRS Stretch Scale", info="Adjusts the amount guidance is amplified.", minimum=-30.0, maximum=30.0, step=0.01, value=self.stretch)
             squash = gr.Slider(label="NRS Squash Multiplier", info="Adjusts the amount final guidance is normalized.", minimum=0.0, maximum=1.0, step=0.01, value=self.squash)
+            normalize_strength = gr.Slider(label="NRS Normalize Strength", info="Adjusts the strength of adaptive normalization.", minimum=0.0, maximum=1.0, step=0.01, value=self.normalize_strength)
 
         enabled.change(
             lambda x: self.update_enabled(x),
             inputs=[enabled]
         )
 
-        return (enabled, skew, stretch, squash)
+        return (enabled, skew, stretch, squash, normalize_strength)
     
 
     def update_enabled(self, value):
         self.enabled = value
 
     def process_before_every_sampling(self, p, *args, **kwargs):
-        if len(args) >= 4:
-            self.enabled, self.skew, self.stretch, self.squash = args[:4]
+        if len(args) >= 5: # Updated to 5
+            self.enabled, self.skew, self.stretch, self.squash, self.normalize_strength = args[:5] # Updated to 5
         else:
             logging.warning("Not enough arguments provided to process_before_every_sampling")
             return
@@ -58,6 +60,8 @@ class NRSScript(scripts.Script):
             self.stretch = xyz["stretch"]
         if "squash" in xyz:
             self.squash = xyz["squash"]
+        if "normalize_strength" in xyz: # Added normalize_strength check
+            self.normalize_strength = xyz["normalize_strength"]
 
         # Always start with a fresh clone of the original unet
         unet = p.sd_model.forge_objects.unet.clone()
@@ -67,7 +71,7 @@ class NRSScript(scripts.Script):
             p.sd_model.forge_objects.unet = unet
             return
 
-        unet = NRS().patch(unet, self.skew, self.stretch, self.squash)[0]
+        unet = NRS().patch(unet, self.skew, self.stretch, self.squash, self.normalize_strength)[0] # Added self.normalize_strength
 
         p.sd_model.forge_objects.unet = unet
         p.extra_generation_params.update({
@@ -75,9 +79,10 @@ class NRSScript(scripts.Script):
             "NRS_skew": self.skew,
             "NRS_stretch": self.stretch,
             "NRS_squash": self.squash,
+            "NRS_normalize_strength": self.normalize_strength, # Added NRS_normalize_strength
         })
 
-        logging.debug(f"NRS: Enabled: {self.enabled}, Squash: {self.skew}, Stretch: {self.stretch}, Squash: {self.squash}")
+        logging.debug(f"NRS: Enabled: {self.enabled}, Skew: {self.skew}, Stretch: {self.stretch}, Squash: {self.squash}, Normalize Strength: {self.normalize_strength}") # Updated logging
 
         return
 
@@ -117,6 +122,11 @@ def make_axis_on_xyz_grid():
             "(NRS) Squash",
             float,
             partial(set_value, field="squash"),
+        ),
+        xyz_grid.AxisOption(
+            "(NRS) Normalize Strength",
+            float,
+            partial(set_value, field="normalize_strength"),
         ),
     ]
 

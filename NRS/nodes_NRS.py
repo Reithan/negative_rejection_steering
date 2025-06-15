@@ -8,21 +8,22 @@ class NRS:
                               "skew": ("FLOAT", {"default": 4.0, "min": -30.0, "max": 30.0, "step": 0.01}),
                               "stretch": ("FLOAT", {"default": 2.0, "min": -30.0, "max": 30.0, "step": 0.01}),
                               "squash": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              "normalize_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                               }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
     CATEGORY = "advanced/model"
 
-    def patch(self, model, skew, stretch, squash):
-        def nrs(args):
+    def patch(self, model, skew, stretch, squash, normalize_strength):
+        def nrs(args, normalize_strength): # Added normalize_strength here
             cond = args["cond"]
             uncond = args["uncond"]
             sigma = args["sigma"]
             sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
             x_orig = args["input"]
 
-            logging.debug(f"NRS.nrs: Skew: {skew}, Stretch: {stretch}, Squash: {squash}")
+            logging.debug(f"NRS.nrs: Skew: {skew}, Stretch: {stretch}, Squash: {squash}, Normalize: {normalize_strength}") # Added Normalize to log
 
             #rescale cfg has to be done on v-pred model output
             x = x_orig / (sigma * sigma + 1.0)
@@ -172,10 +173,28 @@ class NRS:
                     squash_scale = (1 - squash) + squash * cond_len / (sk_dot_sk ** 0.5)
                     x_final = skewed * squash_scale
 
+            # Adaptive Normalization Logic (copied from NRSEpsilon)
+            if normalize_strength > 0:
+                epsilon_norm = 1e-6
+                # Ensure cond is defined in this scope before use
+                dims_to_reduce = tuple(range(2, cond.ndim))
+
+                mean_cond = torch.mean(cond, dim=dims_to_reduce, keepdim=True)
+                var_cond = torch.var(cond, dim=dims_to_reduce, unbiased=False, keepdim=True)
+
+                mean_x_final_orig = torch.mean(x_final, dim=dims_to_reduce, keepdim=True)
+                var_x_final_orig = torch.var(x_final, dim=dims_to_reduce, unbiased=False, keepdim=True)
+
+                normalized_x_final_temp = (x_final - mean_x_final_orig) / (torch.sqrt(var_x_final_orig + epsilon_norm))
+                denormalized_x_final = normalized_x_final_temp * torch.sqrt(var_cond + epsilon_norm) + mean_cond
+
+                x_final = (1.0 - normalize_strength) * x_final + normalize_strength * denormalized_x_final
+
             return x_orig - (x - x_final * sigma / (sigma * sigma + 1.0) ** 0.5)
         
         m = model.clone()
-        m.set_model_sampler_cfg_function(nrs, True)
+        # Use a lambda to pass normalize_strength to the nrs function
+        m.set_model_sampler_cfg_function(lambda args: nrs(args, normalize_strength), True)
         return (m, )
 
 class NRSEpsilon:
