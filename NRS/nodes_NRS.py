@@ -1,6 +1,32 @@
 import logging
 import torch
 
+# Helper function for Adaptive Normalization
+def _adaptive_normalize(x_final, cond, normalize_strength, epsilon_norm=1e-6):
+    if normalize_strength > 0:
+        dims_to_reduce = tuple(range(2, cond.ndim))
+
+        mean_cond = torch.mean(cond, dim=dims_to_reduce, keepdim=True)
+        var_cond = torch.var(cond, dim=dims_to_reduce, unbiased=False, keepdim=True)
+        std_cond = torch.sqrt(var_cond + epsilon_norm)
+
+        mean_x_final_orig = torch.mean(x_final, dim=dims_to_reduce, keepdim=True)
+        var_x_final_orig = torch.var(x_final, dim=dims_to_reduce, unbiased=False, keepdim=True)
+        std_x_final_orig = torch.sqrt(var_x_final_orig + epsilon_norm)
+
+        # K defines the maximum factor by which the standard deviation can be changed.
+        # A K of 10 means the target std dev will be at most 10x or at least 0.1x of the original.
+        K = 10.0
+
+        # Calculate the clamped target standard deviation
+        target_std = torch.clamp(std_cond, min=std_x_final_orig / K, max=std_x_final_orig * K)
+
+        normalized_x_final_temp = (x_final - mean_x_final_orig) / std_x_final_orig # std_x_final_orig already has epsilon
+        denormalized_x_final = normalized_x_final_temp * target_std + mean_cond
+
+        x_final = (1.0 - normalize_strength) * x_final + normalize_strength * denormalized_x_final
+    return x_final
+
 class NRS:
     @classmethod
     def INPUT_TYPES(s):
@@ -173,22 +199,8 @@ class NRS:
                     squash_scale = (1 - squash) + squash * cond_len / (sk_dot_sk ** 0.5)
                     x_final = skewed * squash_scale
 
-            # Adaptive Normalization Logic (copied from NRSEpsilon)
-            if normalize_strength > 0:
-                epsilon_norm = 1e-6
-                # Ensure cond is defined in this scope before use
-                dims_to_reduce = tuple(range(2, cond.ndim))
-
-                mean_cond = torch.mean(cond, dim=dims_to_reduce, keepdim=True)
-                var_cond = torch.var(cond, dim=dims_to_reduce, unbiased=False, keepdim=True)
-
-                mean_x_final_orig = torch.mean(x_final, dim=dims_to_reduce, keepdim=True)
-                var_x_final_orig = torch.var(x_final, dim=dims_to_reduce, unbiased=False, keepdim=True)
-
-                normalized_x_final_temp = (x_final - mean_x_final_orig) / (torch.sqrt(var_x_final_orig + epsilon_norm))
-                denormalized_x_final = normalized_x_final_temp * torch.sqrt(var_cond + epsilon_norm) + mean_cond
-
-                x_final = (1.0 - normalize_strength) * x_final + normalize_strength * denormalized_x_final
+            # Adaptive Normalization Logic
+            x_final = _adaptive_normalize(x_final, cond, normalize_strength)
 
             return x_orig - (x - x_final * sigma / (sigma * sigma + 1.0) ** 0.5)
         
@@ -254,20 +266,7 @@ class NRSEpsilon:
             x_final = skewed * squash_scale
 
             # Adaptive Normalization Logic
-            if normalize_strength > 0:
-                epsilon_norm = 1e-6
-                dims_to_reduce = tuple(range(2, cond.ndim))
-
-                mean_cond = torch.mean(cond, dim=dims_to_reduce, keepdim=True)
-                var_cond = torch.var(cond, dim=dims_to_reduce, unbiased=False, keepdim=True)
-
-                mean_x_final_orig = torch.mean(x_final, dim=dims_to_reduce, keepdim=True)
-                var_x_final_orig = torch.var(x_final, dim=dims_to_reduce, unbiased=False, keepdim=True)
-
-                normalized_x_final_temp = (x_final - mean_x_final_orig) / (torch.sqrt(var_x_final_orig + epsilon_norm))
-                denormalized_x_final = normalized_x_final_temp * torch.sqrt(var_cond + epsilon_norm) + mean_cond
-
-                x_final = (1.0 - normalize_strength) * x_final + normalize_strength * denormalized_x_final
+            x_final = _adaptive_normalize(x_final, cond, normalize_strength)
 
             return x_final
 

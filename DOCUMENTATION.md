@@ -71,6 +71,7 @@ The process involves:
 *   **Effect**:
     *   Applying adaptive normalization can help in producing images that have a more consistent statistical profile with what the model expects for conditioned outputs.
     *   It may lead to improved coherence, better preservation of certain details from the `cond` guidance, or a reduction in unexpected tonal shifts or artifacts that might arise from aggressive steering.
+    *   The process has been refined to be gentler: the adjustment to the signal's standard deviation is now clamped. This means it won't attempt to force the statistics to match if the difference is too large (e.g., the target standard deviation will not be more than a factor of K=10 times different from the original). This makes the normalization more robust against potential artifacts from drastic statistical shifts.
     *   The visual impact can vary depending on the model and other parameters, so experimentation is encouraged. For instance, if high Skew/Stretch values introduce undesirable color casts or intensity imbalances, `normalize_strength` might help to temper these effects by pulling the output's characteristics back towards the `cond` baseline.
 
 ## 4. `NRS` Node vs. `NRSEpsilon` Node
