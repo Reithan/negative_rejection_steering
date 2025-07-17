@@ -68,7 +68,7 @@ def create_linear_guidance_scale(high_scale, low_scale, levels):
     return scales
 
 # Helper function for Adaptive Normalization
-def _adaptive_normalize(x_final, cond, normalize_strength, epsilon_norm=1e-6):
+def _adaptive_normalize(x_final, cond, normalize_strength, k=10.0, epsilon_norm=1e-6):
     if normalize_strength > 0:
         dims_to_reduce = tuple(range(2, cond.ndim))
 
@@ -82,32 +82,213 @@ def _adaptive_normalize(x_final, cond, normalize_strength, epsilon_norm=1e-6):
 
         # K defines the maximum factor by which the standard deviation can be changed.
         # A K of 10 means the target std dev will be at most 10x or at least 0.1x of the original.
-        K = 10.0
 
         # Calculate the clamped target standard deviation
-        target_std = torch.clamp(std_cond, min=std_x_final_orig / K, max=std_x_final_orig * K)
+        target_std = torch.clamp(std_cond, min=std_x_final_orig / k, max=std_x_final_orig * k)
 
-        normalized_x_final_temp = (x_final - mean_x_final_orig) / std_x_final_orig # std_x_final_orig already has epsilon
+        normalized_x_final_temp = (x_final - mean_x_final_orig) / (std_x_final_orig + epsilon_norm) # std_x_final_orig already has epsilon
         denormalized_x_final = normalized_x_final_temp * target_std + mean_cond
 
         x_final = (1.0 - normalize_strength) * x_final + normalize_strength * denormalized_x_final
+    return x_final
+
+def nrs_v_prediction(version, cond, uncond, skew, stretch, squash, epsilon=1e-6):
+    x_final = None
+    match version:
+        case "v1":
+            """
+            v1: Original NRS by comfyanonymous
+            Simple rejection and scaling.
+            """
+            # displace cond by rejection of uncond on cond
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c = (u_dot_c / (c_dot_c + epsilon)) * cond
+            u_rej_c = uncond - u_on_c
+            displaced = (cond - skew * u_rej_c)
+            logging.debug(f"NRS.nrs: displaced")
+
+            # squash displaced vector towards len(cond) based on squash scale
+            d_len_sq = torch.sum(displaced * displaced, dim=-1, keepdim=True)
+            squash_scale = (1 - squash) + squash * ((c_dot_c/(d_len_sq + epsilon)) ** 0.5)
+            squashed = displaced * squash_scale
+            logging.debug(f"NRS.nrs: squashed")
+
+            # stretch turned vector towards cond based on stretch scale
+            sq_dot_c = torch.sum(squashed * cond, dim=-1, keepdim=True)
+            sq_on_c = (sq_dot_c / (c_dot_c + epsilon)) * cond
+            x_final = squashed + sq_on_c * stretch
+            logging.debug(f"NRS.nrs: final")
+        case "v2":
+            """
+            v2: NRS v2 by comfyanonymous
+            Adds clamping and a different stretch method.
+            """
+            # displace cond by rejection of uncond on cond
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon))
+            u_on_c = u_on_c_mag * cond
+            u_rej_c = uncond - u_on_c
+            displaced = cond + stretch * (cond - torch.clamp(u_on_c_mag, min=0, max=1) * cond) - skew * u_rej_c
+            logging.debug(f"NRS.nrs: displaced & stretched")
+
+            # squash displaced vector towards len(cond) based on squash scale
+            d_len_sq = torch.sum(displaced * displaced, dim=-1, keepdim=True)
+            squash_scale = (1 - squash) + squash * ((c_dot_c/(d_len_sq + epsilon)) ** 0.5)
+            x_final = displaced * squash_scale
+            logging.debug(f"NRS.nrs: final")
+        case "v3":
+            """
+            v3: NRS v3 by comfyanonymous
+            A different approach to stretching.
+            """
+            # displace cond by rejection of uncond on cond
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon))
+            u_on_c = u_on_c_mag * cond
+            u_rej_c = uncond - u_on_c
+            displaced = (cond - skew * u_rej_c)
+            logging.debug(f"NRS.nrs: displaced")
+
+            # squash displaced vector towards len(cond) based on squash scale
+            d_len_sq = torch.sum(displaced * displaced, dim=-1, keepdim=True)
+            squash_scale = (1 - squash) + squash * ((c_dot_c/(d_len_sq + epsilon)) ** 0.5)
+
+            # stretch vector towards 2*len(cond) - len(u_on_c)
+            c_len = c_dot_c ** 0.5
+            stretch_scale = (1 - stretch) + stretch * (2 * c_len - u_on_c_mag)/(c_len + epsilon)
+
+            x_final = displaced * squash_scale * stretch_scale
+            logging.debug(f"NRS.nrs: final")
+        case "v4":
+            """
+            v4: NRS v4 by DGSpitzer
+            A different approach to squash and stretch.
+            """
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon))
+            u_on_c = u_on_c_mag * cond
+            u_rej_c = uncond - u_on_c
+            rej_dor_rej = torch.sum(u_rej_c * u_rej_c, dim=-1, keepdim=True)
+            x_final = (cond - squash * u_rej_c + stretch * cond * ((rej_dor_rej/(c_dot_c + epsilon)) ** 0.5))
+            logging.debug(f"NRS.nrs: displaced")
+        case "v0.4.1":
+            """
+            v0.4.1: NRS v0.4.1 by DGSpitzer
+            Separates stretch and skew operations.
+            """
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon))
+            u_on_c = u_on_c_mag * cond
+            u_rej_c = uncond - u_on_c
+            rej_dor_rej = torch.sum(u_rej_c * u_rej_c, dim=-1, keepdim=True)
+            stretched = cond + stretch * cond * ((rej_dor_rej/(c_dot_c + epsilon)) ** 0.5)
+            skewed = stretched - skew * u_rej_c
+            sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
+            squash_scale = (1 - squash) + squash * ((c_dot_c/(sk_dot_sk + epsilon)) ** 0.5)
+            x_final = skewed * squash_scale
+            logging.debug(f"NRS.nrs: displaced")
+        case "v0.4.2":
+            """
+            v0.4.2: NRS v0.4.2 by DGSpitzer
+            A different approach to stretching based on projection length.
+            """
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon))
+            u_on_c = u_on_c_mag * cond
+            u_rej_c = uncond - u_on_c
+            proj_len = torch.sum(u_on_c * u_on_c, dim=-1, keepdim=True) ** 0.5
+            cond_len = c_dot_c ** 0.5
+            stretched = cond * (1 + stretch * torch.abs(cond_len - proj_len) / (cond_len + epsilon))
+            skewed = stretched - skew * u_rej_c
+            sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
+            squash_scale = (1 - squash) + squash * cond_len / ((sk_dot_sk + epsilon) ** 0.5)
+            x_final = skewed * squash_scale
+            logging.debug(f"NRS.nrs: displaced")
+        case "v0.4.3":
+            """
+            v0.4.3: NRS v0.4.3 by DGSpitzer
+            Similar to v0.4.2 but without the absolute value on the projection length difference.
+            """
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon))
+            u_on_c = u_on_c_mag * cond
+            u_rej_c = uncond - u_on_c
+            proj_len = torch.sum(u_on_c * u_on_c, dim=-1, keepdim=True) ** 0.5
+            cond_len = c_dot_c ** 0.5
+            stretched = cond * (1 + stretch * (cond_len - proj_len) / (cond_len + epsilon))
+            skewed = stretched - skew * u_rej_c
+            sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
+            squash_scale = (1 - squash) + squash * cond_len / ((sk_dot_sk + epsilon) ** 0.5)
+            x_final = skewed * squash_scale
+            logging.debug(f"NRS.nrs: displaced")
+        case "v0.4.4":
+            """
+            v0.4.4: NRS v0.4.4 by DGSpitzer
+            Stretches based on the difference between the conditional and unconditional projections.
+            """
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon))
+            u_on_c = u_on_c_mag * cond
+            u_rej_c = uncond - u_on_c
+            cond_len = c_dot_c ** 0.5
+            proj_diff = cond - u_on_c
+            proj_diff_len = torch.sum(proj_diff * proj_diff, dim=-1, keepdim=True) ** 0.5
+            stretched = cond * (1 + stretch * proj_diff_len / (cond_len + epsilon))
+            skewed = stretched - skew * u_rej_c
+            sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
+            squash_scale = (1 - squash) + squash * cond_len / ((sk_dot_sk + epsilon) ** 0.5)
+            x_final = skewed * squash_scale
+            logging.debug(f"NRS.nrs: displaced")
+        case "v0.4.5":
+            """
+            v0.4.5: NRS v0.4.5 by DGSpitzer
+            A simpler version of v0.4.4.
+            """
+            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
+            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
+            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon))
+            u_on_c = u_on_c_mag * cond
+            u_rej_c = uncond - u_on_c
+            cond_len = c_dot_c ** 0.5
+            proj_diff = cond - u_on_c
+
+            # Amplify Cond based on length compared to projection of uncond
+            stretched = cond + (stretch * proj_diff)
+
+            # Skew/Steer Conf based on rejection of uncond on cond
+            skewed = stretched - skew * u_rej_c
+
+            # Squash final length back down to original length of cond
+            sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
+            squash_scale = (1 - squash) + squash * cond_len / ((sk_dot_sk + epsilon) ** 0.5)
+            x_final = skewed * squash_scale
     return x_final
 
 class NRS:
     @classmethod
     def INPUT_TYPES(s):
         return {"required": { "model": ("MODEL",),
+                              "version": (["v1", "v2", "v3", "v4", "v0.4.1", "v0.4.2", "v0.4.3", "v0.4.4", "v0.4.5"],),
                               "skew": ("FLOAT", {"default": 4.0, "min": -30.0, "max": 30.0, "step": 0.01}),
                               "stretch": ("FLOAT", {"default": 2.0, "min": -30.0, "max": 30.0, "step": 0.01}),
                               "squash": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                               "normalize_strength": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                              "adaptive_k": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 100.0, "step": 0.1}),
                               }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
     CATEGORY = "advanced/model"
 
-    def patch(self, model, skew, stretch, squash, normalize_strength):
+    def patch(self, model, version, skew, stretch, squash, normalize_strength, adaptive_k):
         def nrs(args, normalize_strength): # Added normalize_strength here
             cond = args["cond"]
             uncond = args["uncond"]
@@ -123,150 +304,10 @@ class NRS:
             uncond = ((x - (x_orig - uncond)) * (sigma ** 2 + 1.0) ** 0.5) / (sigma)
             logging.debug(f"NRS.nrs: generated cond and uncond")
 
-            x_final = None
-            match "v0.4.5":
-                case "v1":
-                    # displace cond by rejection of uncond on cond
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c = (u_dot_c / c_dot_c) * cond
-                    u_rej_c = uncond - u_on_c
-                    displaced = (cond - skew * u_rej_c)
-                    logging.debug(f"NRS.nrs: displaced")
-
-                    # squash displaced vector towards len(cond) based on squash scale
-                    d_len_sq = torch.sum(displaced * displaced, dim=-1, keepdim=True)
-                    squash_scale = (1 - squash) + squash * ((c_dot_c/d_len_sq) ** 0.5)
-                    squashed = displaced * squash_scale
-                    logging.debug(f"NRS.nrs: squashed")
-
-                    # stretch turned vector towards cond based on stretch scale
-                    sq_dot_c = torch.sum(squashed * cond, dim=-1, keepdim=True)
-                    sq_on_c = (sq_dot_c / c_dot_c) * cond
-                    x_final = squashed + sq_on_c * stretch
-                    logging.debug(f"NRS.nrs: final")
-                case "v2":
-                    # displace cond by rejection of uncond on cond
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c_mag = (u_dot_c / c_dot_c)
-                    u_on_c = u_on_c_mag * cond
-                    u_rej_c = uncond - u_on_c
-                    displaced = cond + stretch * (cond - torch.clamp(u_dot_c / c_dot_c, min=0, max=1) * cond) - skew * u_rej_c
-                    logging.debug(f"NRS.nrs: displaced & stretched")
-
-                    # squash displaced vector towards len(cond) based on squash scale
-                    d_len_sq = torch.sum(displaced * displaced, dim=-1, keepdim=True)
-                    squash_scale = (1 - squash) + squash * ((c_dot_c/d_len_sq) ** 0.5)
-                    x_final = displaced * squash_scale
-                    logging.debug(f"NRS.nrs: final")
-                case "v3":
-                    # displace cond by rejection of uncond on cond
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c_mag = (u_dot_c / c_dot_c)
-                    u_on_c = u_on_c_mag * cond
-                    u_rej_c = uncond - u_on_c
-                    displaced = (cond - skew * u_rej_c)
-                    logging.debug(f"NRS.nrs: displaced")
-
-                    # squash displaced vector towards len(cond) based on squash scale
-                    d_len_sq = torch.sum(displaced * displaced, dim=-1, keepdim=True)
-                    squash_scale = (1 - squash) + squash * ((c_dot_c/d_len_sq) ** 0.5)
-
-                    # stretch vector towards 2*len(cond) - len(u_on_c)
-                    c_len = c_dot_c ** 0.5
-                    stretch_scale = (1 - stretch) + stretch * (2 * c_len - u_on_c_mag)/c_len
-
-                    x_final = displaced * squash_scale * stretch_scale
-                    logging.debug(f"NRS.nrs: final")
-                case "v4":
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c_mag = (u_dot_c / c_dot_c)
-                    u_on_c = u_on_c_mag * cond
-                    u_rej_c = uncond - u_on_c
-                    rej_dor_rej = torch.sum(u_rej_c * u_rej_c, dim=-1, keepdim=True)
-                    x_final = (cond - squash * u_rej_c + stretch * cond * ((rej_dor_rej/c_dot_c) ** 0.5))
-                    logging.debug(f"NRS.nrs: displaced")
-                case "v0.4.1":
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c_mag = (u_dot_c / c_dot_c)
-                    u_on_c = u_on_c_mag * cond
-                    u_rej_c = uncond - u_on_c
-                    rej_dor_rej = torch.sum(u_rej_c * u_rej_c, dim=-1, keepdim=True)
-                    stretched = cond + stretch * cond * ((rej_dor_rej/c_dot_c) ** 0.5)
-                    skewed = stretched - skew * u_rej_c
-                    sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
-                    squash_scale = (1 - squash) + squash * ((c_dot_c/sk_dot_sk) ** 0.5)
-                    x_final = skewed * squash_scale
-                    logging.debug(f"NRS.nrs: displaced")
-                case "v0.4.2":
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c_mag = (u_dot_c / c_dot_c)
-                    u_on_c = u_on_c_mag * cond
-                    u_rej_c = uncond - u_on_c
-                    proj_len = torch.sum(u_on_c * u_on_c, dim=-1, keepdim=True) ** 0.5
-                    cond_len = c_dot_c ** 0.5
-                    stretched = cond * (1 + stretch * torch.abs(cond_len - proj_len) / cond_len)
-                    skewed = stretched - skew * u_rej_c
-                    sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
-                    squash_scale = (1 - squash) + squash * cond_len / (sk_dot_sk ** 0.5)
-                    x_final = skewed * squash_scale
-                    logging.debug(f"NRS.nrs: displaced")
-                case "v0.4.3":
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c_mag = (u_dot_c / c_dot_c)
-                    u_on_c = u_on_c_mag * cond
-                    u_rej_c = uncond - u_on_c
-                    proj_len = torch.sum(u_on_c * u_on_c, dim=-1, keepdim=True) ** 0.5
-                    cond_len = c_dot_c ** 0.5
-                    stretched = cond * (1 + stretch * (cond_len - proj_len) / cond_len)
-                    skewed = stretched - skew * u_rej_c
-                    sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
-                    squash_scale = (1 - squash) + squash * cond_len / (sk_dot_sk ** 0.5)
-                    x_final = skewed * squash_scale
-                    logging.debug(f"NRS.nrs: displaced")
-                case "v0.4.4":
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c_mag = (u_dot_c / c_dot_c)
-                    u_on_c = u_on_c_mag * cond
-                    u_rej_c = uncond - u_on_c
-                    cond_len = c_dot_c ** 0.5
-                    proj_diff = cond - u_on_c
-                    proj_diff_len = torch.sum(proj_diff * proj_diff, dim=-1, keepdim=True) ** 0.5
-                    stretched = cond * (1 + stretch * proj_diff_len / cond_len)
-                    skewed = stretched - skew * u_rej_c
-                    sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
-                    squash_scale = (1 - squash) + squash * cond_len / (sk_dot_sk ** 0.5)
-                    x_final = skewed * squash_scale
-                    logging.debug(f"NRS.nrs: displaced")
-                case "v0.4.5":
-                    u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-                    c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-                    u_on_c_mag = (u_dot_c / c_dot_c)
-                    u_on_c = u_on_c_mag * cond
-                    u_rej_c = uncond - u_on_c
-                    cond_len = c_dot_c ** 0.5
-                    proj_diff = cond - u_on_c
-
-                    # Amplify Cond based on length compared to projection of uncond
-                    stretched = cond + (stretch * proj_diff)
-
-                    # Skew/Steer Conf based on rejection of uncond on cond
-                    skewed = stretched - skew * u_rej_c
-
-                    # Squash final length back down to original length of cond
-                    sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
-                    squash_scale = (1 - squash) + squash * cond_len / (sk_dot_sk ** 0.5)
-                    x_final = skewed * squash_scale
+            x_final = nrs_v_prediction(version, cond, uncond, skew, stretch, squash)
 
             # Adaptive Normalization Logic
-            x_final = _adaptive_normalize(x_final, cond, normalize_strength)
+            x_final = _adaptive_normalize(x_final, cond, normalize_strength, adaptive_k)
 
             return x_orig - (x - x_final * sigma / (sigma * sigma + 1.0) ** 0.5)
         
@@ -285,6 +326,7 @@ class NRSEpsilon:
                 "stretch": ("FLOAT", {"default": 2.0, "min": -30.0, "max": 30.0, "step": 0.01}),
                 "squash": ("FLOAT", {"default": 0.0, "min": 0.0, "max": 1.0, "step": 0.01}),
                 "normalize_strength": ("FLOAT", {"default": 1.0, "min": 0.0, "max": 1.0, "step": 0.01}),
+                "adaptive_k": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 100.0, "step": 0.1}),
             }
         }
 
@@ -292,7 +334,7 @@ class NRSEpsilon:
     FUNCTION = "patch"
     CATEGORY = "advanced/model"
 
-    def patch(self, model, skew, stretch, squash, normalize_strength):
+    def patch(self, model, skew, stretch, squash, normalize_strength, adaptive_k=10.0):
         # It's important to import torch and logging if they are not already top-level in the file.
         # Assuming 'torch' and 'logging' are available in the scope from file-level imports.
 
@@ -305,34 +347,10 @@ class NRSEpsilon:
             # Use logging if available, otherwise this line would need to be conditional or removed.
             # logging.debug(f"NRSEpsilon.nrs: Skew: {skew}, Stretch: {stretch}, Squash: {squash}, Normalize: {normalize_strength}")
 
-            x_final = None
-
-            # v0.4.5 steering logic (embedded directly)
-            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-
-            epsilon_steering = 1e-6
-            u_on_c_mag = (u_dot_c / (c_dot_c + epsilon_steering))
-
-            u_on_c = u_on_c_mag * cond
-            u_rej_c = uncond - u_on_c
-
-            cond_len_sq = c_dot_c
-            cond_len = torch.sqrt(cond_len_sq + epsilon_steering)
-
-            proj_diff = cond - u_on_c
-
-            stretched = cond + (stretch * proj_diff)
-            skewed = stretched - skew * u_rej_c
-
-            sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
-            sk_dot_sk_sqrt = torch.sqrt(sk_dot_sk + epsilon_steering)
-
-            squash_scale = (1 - squash) + squash * (cond_len / (sk_dot_sk_sqrt + epsilon_steering))
-            x_final = skewed * squash_scale
+            x_final = nrs_v_prediction("v0.4.5", cond, uncond, skew, stretch, squash)
 
             # Adaptive Normalization Logic
-            x_final = _adaptive_normalize(x_final, cond, normalize_strength)
+            x_final = _adaptive_normalize(x_final, cond, normalize_strength, adaptive_k)
 
             return x_final
 
@@ -374,7 +392,8 @@ class NRSFDG:
                     "min": 1,
                     "max": 50,
                     "step": 1
-                })
+                }),
+                "adaptive_k": ("FLOAT", {"default": 10.0, "min": 0.0, "max": 100.0, "step": 0.1}),
             }
         }
 
@@ -382,7 +401,7 @@ class NRSFDG:
     FUNCTION = "patch"
     CATEGORY = "advanced/model"
 
-    def patch(self, model, skew, stretch, squash, normalize_strength, guidance_scale_high, guidance_scale_low, levels, fdg_steps):
+    def patch(self, model, skew, stretch, squash, normalize_strength, guidance_scale_high, guidance_scale_low, levels, fdg_steps, adaptive_k=10.0):
         guidance_scale = create_linear_guidance_scale(guidance_scale_high, guidance_scale_low, levels)
         parallel_weights = [1.0] * (levels)
 
@@ -413,27 +432,10 @@ class NRSFDG:
             cond = ((x - (x_orig - cond)) * (sigma ** 2 + 1.0) ** 0.5) / (sigma)
             uncond = ((x - (x_orig - uncond)) * (sigma ** 2 + 1.0) ** 0.5) / (sigma)
 
-            u_dot_c = torch.sum(uncond * cond, dim=-1, keepdim=True)
-            c_dot_c = torch.sum(cond * cond, dim=-1, keepdim=True)
-            u_on_c_mag = (u_dot_c / c_dot_c)
-            u_on_c = u_on_c_mag * cond
-            u_rej_c = uncond - u_on_c
-            cond_len = c_dot_c ** 0.5
-            proj_diff = cond - u_on_c
-
-            # Amplify Cond based on length compared to projection of uncond
-            stretched = cond + (stretch * proj_diff)
-
-            # Skew/Steer Conf based on rejection of uncond on cond
-            skewed = stretched - skew * u_rej_c
-
-            # Squash final length back down to original length of cond
-            sk_dot_sk = torch.sum(skewed * skewed, dim=-1, keepdim=True)
-            squash_scale = (1 - squash) + squash * cond_len / (sk_dot_sk ** 0.5)
-            x_final = skewed * squash_scale
+            x_final = nrs_v_prediction("v0.4.5", cond, uncond, skew, stretch, squash)
 
             # Adaptive Normalization Logic
-            x_final = _adaptive_normalize(x_final, cond, normalize_strength)
+            x_final = _adaptive_normalize(x_final, cond, normalize_strength, adaptive_k)
 
             return x_orig - (x - x_final * sigma / (sigma * sigma + 1.0) ** 0.5)
 
