@@ -18,7 +18,7 @@ class NRSScript(scripts.Script):
     sorting_priority = 5
 
     def title(self):
-        return "Negative Rejection Steering for reForge"
+        return "Negative Rejection Steering"
 
     def show(self, is_img2img):
         return scripts.AlwaysVisible
