@@ -1,4 +1,3 @@
-import inspect
 import logging
 import torch
 from enum import Enum, auto
@@ -52,36 +51,26 @@ class NRS:
             return str(p).strip().lower()
 
         # Breadth-first search through a few well-known wrappers.
-        queue = [model]
-        visited = set()
+        queue, seen = [model], set()
 
         while queue:
             obj = queue.pop(0)
-            if id(obj) in visited:
-                continue
-            visited.add(id(obj))
 
             # 1) direct hit on this object ---------------------------------
-            p = _canon(getattr(obj, "parameterization", None))             # k-diffusion
-            if p:
-                return _RAW_TO_ENUM.get(p, PredictionType.UNKNOWN)
-
-            p = _canon(getattr(getattr(obj, "config", None), "prediction_type", None))  # diffusers
-            if p:
-                return _RAW_TO_ENUM.get(p, PredictionType.UNKNOWN)
-
-            p = _canon(getattr(obj, "prediction_type", None))              # rare misc
-            if p:
-                return _RAW_TO_ENUM.get(p, PredictionType.UNKNOWN)
+            for attr in ("model_type", "prediction_type", "parameterization"):
+                p = _canon(getattr(obj, attr, None))
+                if p:
+                    return _RAW_TO_ENUM.get(p, PredictionType.UNKNOWN)
 
             # 2) enqueue child containers we care about -------------------
-            for attr in ("model_sampling", "model", "diffusion_model", "scheduler"):
+            for attr in ("model", "diffusion_model", "config", "scheduler", "inner_model", "model_sampling"):
                 child = getattr(obj, attr, None)
-                if child is not None:
+                if child is not None and id(child) not in seen:
+                    seen.add(id(child))
                     queue.append(child)
 
         # 3) default ------------------------------------------------------
-        return PredictionType.EPS
+        return PredictionType.UNKNOWN
 
    
     def _pre_scale_conditioning(self, x_orig, sigma, cond, uncond):
@@ -129,10 +118,14 @@ class NRS:
         def nrs(args):
             cond = args["cond"]
             uncond = args["uncond"]
-            sigma = args["sigma"]
-            sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
             x_orig = args["input"]
+            
             self.__pred_type = self.__pred_type if self.__pred_type is not None else self._get_pred_type(model)
+            sigma = None
+            if self.__pred_type == PredictionType.V:
+                sigma = args["sigma"]
+                sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
+
 
             logging.debug(f"NRS.nrs: Skew: {skew}, Stretch: {stretch}, Squash: {squash}")
             
@@ -281,30 +274,29 @@ class NRS:
                     x_final = skewed * squash_scale
                 case "v0.5.0":
                     def _dot(a, b):
-                        return (a*b).flatten(1).sum(dim=1, keepdim=True) # [B,1]
+                        return (a*b).flatten(1).sum(dim=1, keepdim=True) # [B,C,W,H] => [B,1]
                     def _nrm2(v):
                         return _dot(v, v)
-                    
-                    eps = eps = torch.finfo(eps_cond.dtype).eps
+
+                    eps = torch.finfo(eps_cond.dtype).eps
                     c_dot_c = _nrm2(eps_cond) + eps # [B,1]
                     u_dot_c = _dot(eps_uncond, eps_cond) # [B,1]
 
                     u_on_c = (u_dot_c / c_dot_c).view(-1, 1, 1, 1) * eps_cond # [B,1,1,1] * [B,C,H,W]
-                    u_rej_c = eps_uncond - u_on_c
-                    proj_diff = eps_cond - u_on_c
-
                     
                     # Amplify Cond based on length compared to projection of uncond
+                    proj_diff = eps_cond - u_on_c
                     stretched = eps_cond + (stretch * proj_diff)
 
                     # Skew/Steer Conf based on rejection of uncond on cond
-                    skewed = stretched - skew * u_rej_c
+                    u_rej_c = eps_uncond - u_on_c
+                    skewed = stretched - (skew * u_rej_c)
 
                     # Squash final length back down to original length of cond
                     cond_len = torch.sqrt(c_dot_c) # [B,1]
-                    nrs_len = torch.sqrt(_nrm2(skewed) + eps) # [B,1]
+                    nrs_len = torch.sqrt(_nrm2(skewed)) + eps # [B,1]
 
-                    squash_scale = (1 - squash) + squash * (cond_len / nrs_len)
+                    squash_scale = (1 - squash) + (squash * (cond_len / nrs_len))
                     x_final = skewed * squash_scale.view(-1, 1, 1, 1)
 
             return self._post_scale_conditioning(x_orig, x_div, x_final, sigma)

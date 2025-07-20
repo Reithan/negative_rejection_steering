@@ -1,0 +1,10 @@
+# The 'purpose' or 'intention' behind our 3 knobs
+
+## SKEW
+This is the primary 'steering' knob. This will 'turn' the 'direction' the current denoising step is traveling in the latent space. If we define the 'default' (cond) direction as 'prior step -> cond' then we're just applying a 'lateral' skew to that direction to 'turn' it 'away' from the 'unintended' direction (uncond)
+
+## STRETCH
+This is the sister knob to Skew. This is the accelerator. We want to go 'faster' into the intended direction (cond) the less aligned it is with the unintended direction (uncond). Think of this like a combination of brakes + gas. If we're headed directly for a brick wall (uncond is in the same direction as cond), we want to apply no acceleration, or negative acceleration. If we're traveling directly away from danger (uncond is in the opposite direction of cond) then we want to stomp the gas and get as far away as we can. There's only 1 problem with this BASIC-level description: as we get further into generation, regardless of pos/neg promp, cond & uncon will naturally align to be the same vector. In the last stop of inference, cond and uncond will be basically identical if nothing has fucked up. So whatever math we apply here needs to take the progressive alignment of cond & uncond into account. That's why were/are scaling only on the projection difference right now, rather than the full projection.
+
+## SQUASH
+This is out 'safety' knob. Think of this like a 'limiter' in a car. This sets the 'top speed' we can go to some multiple of the 'default' speed the model would 'like to' go. i.e. whatever length of directional vector the model produces prior to any skewing or stretching is treated as the 'default' length with Squash=1.0 ensuring we only every go that 'speed' and no more, while Squash=0.0 lets us go any speed we want based on the other 2 knobs. GENERALLY we'll be leaving Squash at 0.0 unless we need it for specific generations.
