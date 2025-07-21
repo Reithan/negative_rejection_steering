@@ -13,4 +13,4 @@ Repository = "https://github.com/Reithan/negative_rejection_steering"
 [tool.comfy]
 PublisherId = "@reithan"
 DisplayName = "Negative Rejection Steering"
-Icon = ""
+Icon = "https://raw.githubusercontent.com/Reithan/negative_rejection_steering/main/icon.png"
