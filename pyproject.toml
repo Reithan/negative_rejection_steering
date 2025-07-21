@@ -11,6 +11,6 @@ Repository = "https://github.com/Reithan/negative_rejection_steering"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = "@reithan"
+PublisherId = "reithan"
 DisplayName = "Negative Rejection Steering"
 Icon = "https://raw.githubusercontent.com/Reithan/negative_rejection_steering/main/icon.png"
