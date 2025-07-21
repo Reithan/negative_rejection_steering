@@ -1,14 +1,16 @@
 [project]
 name = "negative_rejection_steering"
 description = "NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidance with a more nuanced and composable steering of the generation process with better mathematical basis."
-version = "1.0.0"
+authors = [{name = "Bryan O'Malley", email = "bo122081@hotmail.com"}]
+version = "0.7.0"
 license = {file = "LICENSE"}
+readme = "README.md"
 
 [project.urls]
 Repository = "https://github.com/Reithan/negative_rejection_steering"
 #  Used by Comfy Registry https://comfyregistry.org
 
 [tool.comfy]
-PublisherId = ""
-DisplayName = "negative_rejection_steering"
+PublisherId = "@reithan"
+DisplayName = "Negative Rejection Steering"
 Icon = ""
