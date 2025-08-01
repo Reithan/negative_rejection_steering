@@ -13,6 +13,7 @@ class PredictionType(Enum):
 _RAW_TO_ENUM = {
     "eps":          PredictionType.EPS,
     "epsilon":      PredictionType.EPS,
+    "flux":         PredictionType.EPS,
     "v":            PredictionType.V,
     "v_prediction": PredictionType.V,
     "x0":           PredictionType.X0,
