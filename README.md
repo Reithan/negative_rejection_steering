@@ -60,8 +60,8 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 **Squash** is the speed limit. At 0.0 Squash, each diffusion step receives the full intensity you set from Skew and Stretch, while 1.0 Squash ensures each step has only the original step size output by the model. This setting will only remove intensity unless you have a non-zero Skew value. Squash will 'soften' the effects of Skew and Stretch as it's raised, but the 'removed' Skew and Stretch intensity is replaced by enhanced micro-detailing and 'burn'. Squash should generally be left low and used as a 'finishing' step after dialing in a decent Skew and Stretch value.
 
 ## Beginner How-To
-1. Set Skew to your normal CFG Scale setting and Stretch to 1/2 your normal CFG Scale. Set Squash to 0.0.<br>
-*Alternatively, try starting at 1/1/0.0 to get a baseline.*
+1. Set Skew to 1/2 of your normal CFG Scale setting and Stretch to your full normal CFG Scale. Set Squash to 0.0.<br>
+*Alternatively, try starting at 1/1/1 to get a baseline.*
 2. Test some outputs. Results should be similar in quality to CFG.
 3. Adjust Skew to change the intensity of your outputs adherence to your positive and negative prompts. This primarily effects composition of the output.
 4. Adjust Stretch to intensify your positive prompt's aspects and colors where they differ from the negative prompt. This primarily effects color and texture.
