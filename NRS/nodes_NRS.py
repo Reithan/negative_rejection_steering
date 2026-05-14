@@ -24,15 +24,20 @@ _RAW_TO_ENUM = {
 class NRS:
     @classmethod
     def INPUT_TYPES(s):
-        return {"required": { "model": ("MODEL",),
-                              "skew": ("FLOAT", {"default": 2.00, "min": -30.0, "max": 30.0, "step": 0.01}),
-                              "stretch": ("FLOAT", {"default": 5.00, "min": -30.0, "max": 30.0, "step": 0.01}),
-                              "squash": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.01}),
+        return {"required": { "model": ("MODEL", {"tooltip": "Input model to apply NRS to"}),
+                              "skew": ("FLOAT", {"default": 2.00, "min": -30.0, "max": 30.0, "step": 0.01,
+                                               "tooltip": "Changes the 'direction' of generation, steering away from negative prompt elements. Start with CFG/2."}),
+                              "stretch": ("FLOAT", {"default": 5.00, "min": -30.0, "max": 30.0, "step": 0.01,
+                                                  "tooltip": "Intensifies positive prompt elements. Start with your normal CFG value."}),
+                              "squash": ("FLOAT", {"default": 0.75, "min": 0.0, "max": 1.0, "step": 0.01,
+                                                 "tooltip": "Softens Skew/Stretch effects, adding micro-detailing. Keep low initially."}),
                               }}
     RETURN_TYPES = ("MODEL",)
     FUNCTION = "patch"
 
     CATEGORY = "advanced/model"
+
+    DESCRIPTION = "Negative Rejection Steering (NRS) replaces CFG with more nuanced guidance. IMPORTANT: Set your KSampler CFG to any value (it will be ignored). Connect your model through this node before sampling."
 
     def _get_pred_type(self, model) -> PredictionType:
         """
