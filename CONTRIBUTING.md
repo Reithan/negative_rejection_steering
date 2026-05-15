@@ -27,13 +27,13 @@ Thank you for your interest in contributing! This document provides guidelines f
    ```bash
    # Git Bash (Windows)
    source .venv/Scripts/activate
-   
+
    # Linux/Mac
    source .venv/bin/activate
-   
+
    # Windows CMD
    .venv\Scripts\activate.bat
-   
+
    # Windows PowerShell
    .venv\Scripts\Activate.ps1
    ```
@@ -53,7 +53,7 @@ Thank you for your interest in contributing! This document provides guidelines f
    ```bash
    # Run hooks manually on all files
    pre-commit run --all-files
-   
+
    # Check that ruff works
    ruff check .
    ```
@@ -72,7 +72,7 @@ Thank you for your interest in contributing! This document provides guidelines f
    ```bash
    git checkout -b feature/your-feature-name
    ```
-   
+
    Or for bug fixes:
    ```bash
    git checkout -b fix/bug-description
@@ -83,19 +83,19 @@ Thank you for your interest in contributing! This document provides guidelines f
    git add <files>
    git commit -m "Your commit message"
    ```
-   
+
    The pre-commit hook will automatically:
    - Run ruff linting and auto-fix issues
    - Check for trailing whitespace, EOF issues, etc.
    - Block the commit if you're on the main branch
-   
+
    If the linter auto-fixes files, you'll need to re-stage and commit again.
 
 3. **Push your branch**:
    ```bash
    git push origin feature/your-feature-name
    ```
-   
+
    The pre-push hook will:
    - Run tests (if pytest is available)
    - Block the push if you're on the main branch

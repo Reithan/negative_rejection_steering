@@ -2,7 +2,7 @@
 repos:
   # Standard pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v5.0.0
+    rev: v6.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -15,7 +15,7 @@ repos:
 
   # Ruff linter and formatter
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.13
+    rev: v0.15.12
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
@@ -26,9 +26,9 @@ repos:
     hooks:
       - id: prevent-commit-to-main
         name: Prevent commits to main branch
-        entry: bash -c 'if [ "$(git branch --show-current)" = "main" ]; then echo "ERROR: Direct commits to main branch are not allowed. Create a feature branch instead."; exit 1; fi'
+        entry: bash -c 'BRANCH=$(git branch --show-current); if [ "$BRANCH" = "main" ]; then echo "ERROR - Direct commits to main are not allowed. Create a feature branch instead."; exit 1; fi'
         language: system
-        stages: [commit]
+        stages: [pre-commit]
         always_run: true
         pass_filenames: false
 
@@ -37,16 +37,16 @@ repos:
     hooks:
       - id: run-tests
         name: Run pytest tests
-        entry: bash -c 'if command -v pytest &> /dev/null; then pytest tests/ || exit 1; else echo "WARNING: pytest not found, skipping tests"; fi'
+        entry: bash -c 'if command -v pytest > /dev/null 2>&1; then pytest tests/ || exit 1; else echo "WARNING - pytest not found, skipping tests"; fi'
         language: system
-        stages: [push]
+        stages: [pre-push]
         always_run: true
         pass_filenames: false
 
       - id: prevent-push-to-main
         name: Prevent pushes to main branch
-        entry: bash -c 'if [ "$(git branch --show-current)" = "main" ]; then echo "ERROR: Direct pushes to main branch are not allowed. Use pull requests instead."; exit 1; fi'
+        entry: bash -c 'BRANCH=$(git branch --show-current); if [ "$BRANCH" = "main" ]; then echo "ERROR - Direct pushes to main are not allowed. Use pull requests instead."; exit 1; fi'
         language: system
-        stages: [push]
+        stages: [pre-push]
         always_run: true
         pass_filenames: false

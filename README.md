@@ -39,7 +39,7 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 
 | Prompt     | |
 | ---------- | --- |
-| Tool       | [Stable Diffusion WebUI reForge](https://github.com/Panchovix/stable-diffusion-webui-reForge) |  
+| Tool       | [Stable Diffusion WebUI reForge](https://github.com/Panchovix/stable-diffusion-webui-reForge) |
 | Sampler    | DPM++ 2M |
 | Scheduler  | Align Your Steps |
 | Steps      | 25 |
@@ -67,10 +67,10 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 4. Adjust Stretch to intensify your positive prompt's aspects and colors where they differ from the negative prompt. This primarily effects color and texture.
 5. Adjust Squash to soften Skew and Stretch's effects. The intensity removed from Skew and Stretch will generally become additional micro-detailing and elements.
 
-> [!TIP] 
+> [!TIP]
 > You can experiment with negative values for each setting as well. This can be useful to understand how the model interpreting your negative prompt.
 
-> [!WARNING] 
+> [!WARNING]
 > Don't set NRS values to negatives if there are things in your negative prompt you **actually** don't want to see.
 
 ## Setup & Installation
@@ -99,7 +99,7 @@ Model → NRS Node → KSampler
 ![ComfyUI Workflow Example](https://github.com/user-attachments/assets/edaa36a4-9ad8-4a35-bad3-dda80138b996)
 </details>
 
-### Automatic1111 / Forge / reForge  
+### Automatic1111 / Forge / reForge
 <details>
 <summary>WebUI Setup Instructions</summary>
 

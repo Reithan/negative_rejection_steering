@@ -50,7 +50,9 @@ def test_pyproject_has_dev_dependencies():
     pyproject_content = (project_root / "pyproject.toml").read_text()
 
     # Check for dev dependencies
-    assert "[project.optional-dependencies]" in pyproject_content or "[tool.poetry.dev-dependencies]" in pyproject_content
+    assert (
+        "[project.optional-dependencies]" in pyproject_content or "[tool.poetry.dev-dependencies]" in pyproject_content
+    )
     assert "pytest" in pyproject_content
     assert "ruff" in pyproject_content
     assert "pre-commit" in pyproject_content
