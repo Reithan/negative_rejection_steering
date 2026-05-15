@@ -123,10 +123,10 @@ git commit --no-verify    # Skip pre-commit hooks
 git push --no-verify      # Skip pre-push hooks
 ```
 
-**Warning**: Only use `--no-verify` in true emergencies. Bypassing hooks may:
+**Warning**: Only use `--no-verify` in emergencies. Bypassing hooks may:
 
 - Introduce linting issues
-- Break Continuous Integration/Continuous Deployment (CI/CD) pipelines
+- Break Continuous Integration/Continuous Deployment pipelines
 - Allow untested code to be pushed
 
 ## Development Commands
@@ -163,7 +163,7 @@ pytest tests/test_smoke.py
 pytest tests/test_smoke.py::test_file_structure
 ```
 
-**Note**: Tests that require `torch` will be skipped in the development venv since torch is provided by ComfyUI at runtime.
+**Note**: Tests use mocked versions of torch and gradio (via conftest.py) since these dependencies are provided by ComfyUI/WebUI at runtime.
 
 ### Pre-commit Hooks
 
