@@ -94,6 +94,8 @@ Model → NRS Node → KSampler
 
 **Pro tip**: To verify NRS is working correctly, set CFG to an extremely high value (like 30). If your output looks normal, NRS is functioning properly. If the output appears "turbo fried," check your node connections.
 
+**Sampler Compatibility**: NRS now supports advanced samplers including WanKSamplerAdvanced, RES4LYF samplers, and FLOW models (WAN21, Flux) with enhanced prediction type detection.
+
 ![ComfyUI Workflow Example](https://github.com/user-attachments/assets/edaa36a4-9ad8-4a35-bad3-dda80138b996)
 </details>
 

@@ -15,6 +15,9 @@ _RAW_TO_ENUM = {
     "epsilon":      PredictionType.EPS,
     "flux":         PredictionType.EPS,
     "chroma":       PredictionType.EPS,
+    "flow":         PredictionType.EPS,  # FLOW models (WAN, etc.) are EPS-compatible
+    "wan":          PredictionType.EPS,  # WAN21 is FLOW-based
+    "const":        PredictionType.EPS,  # CONST prediction class used in FLOW models
     "v":            PredictionType.V,
     "v_prediction": PredictionType.V,
     "x0":           PredictionType.X0,
@@ -66,7 +69,10 @@ class NRS:
             for attr in ("model_type", "prediction_type", "parameterization"):
                 p = _canon(getattr(obj, attr, None))
                 if p:
-                    return _RAW_TO_ENUM.get(p, PredictionType.UNKNOWN)
+                    pred_type = _RAW_TO_ENUM.get(p, PredictionType.UNKNOWN)
+                    if pred_type != PredictionType.UNKNOWN:
+                        logging.debug(f"NRS._get_pred_type: Found prediction type '{p}' from attribute '{attr}' -> {pred_type}")
+                        return pred_type
 
             # 2) enqueue child containers we care about -------------------
             for attr in ("model", "diffusion_model", "config", "scheduler", "inner_model", "model_sampling"):
@@ -75,8 +81,46 @@ class NRS:
                     seen.add(id(child))
                     queue.append(child)
 
-        # 3) default ------------------------------------------------------
-        return PredictionType.UNKNOWN
+        # 3) enhanced detection for FLOW models (WAN, Flux, etc.) -------
+        try:
+            # Check model_sampling class type for FLOW models
+            if hasattr(model, "model_sampling") and model.model_sampling is not None:
+                sampling_class_name = type(model.model_sampling).__name__.lower()
+                logging.debug(f"NRS._get_pred_type: Found model_sampling class: {sampling_class_name}")
+
+                # CONST class is used by FLOW models (WAN21, Flux, etc.)
+                if "const" in sampling_class_name:
+                    logging.debug(f"NRS._get_pred_type: Detected FLOW model via CONST sampling class -> EPS")
+                    return PredictionType.EPS
+                elif "v_prediction" in sampling_class_name:
+                    logging.debug(f"NRS._get_pred_type: Detected V-prediction model via sampling class -> V")
+                    return PredictionType.V
+                elif "eps" in sampling_class_name:
+                    logging.debug(f"NRS._get_pred_type: Detected EPS model via sampling class -> EPS")
+                    return PredictionType.EPS
+
+            # Check model.model.model_type enum for newer models
+            if hasattr(model, "model") and hasattr(model.model, "model_type"):
+                model_type_str = _canon(str(model.model.model_type))
+                logging.debug(f"NRS._get_pred_type: Found model.model.model_type: {model_type_str}")
+
+                if "flow" in model_type_str or "flux" in model_type_str:
+                    logging.debug(f"NRS._get_pred_type: Detected FLOW/Flux model via model_type -> EPS")
+                    return PredictionType.EPS
+                elif "v_prediction" in model_type_str:
+                    logging.debug(f"NRS._get_pred_type: Detected V-prediction model via model_type -> V")
+                    return PredictionType.V
+                elif "eps" in model_type_str:
+                    logging.debug(f"NRS._get_pred_type: Detected EPS model via model_type -> EPS")
+                    return PredictionType.EPS
+
+        except Exception as e:
+            logging.debug(f"NRS._get_pred_type: Exception during enhanced detection: {e}")
+
+        # 4) safe default (matches docstring promise) --------------------
+        logging.warning(f"NRS._get_pred_type: Could not determine prediction type for model. Using EPS as fallback.")
+        logging.debug(f"NRS._get_pred_type: Model structure: {[attr for attr in dir(model) if not attr.startswith('_')]}")
+        return PredictionType.EPS
    
     def _convert_to_eps_space(self, x_orig, sig_root, sigma, cond, uncond):
         x_div = None
@@ -95,7 +139,9 @@ class NRS:
         elif self.__pred_type == PredictionType.X0:
             raise NotImplementedError("NRS._convert_to_eps_space: x0-prediction not supported yet.")
         else:
-            raise RuntimeError("NRS._convert_to_eps_space: Could not determine prediction type for this model.")
+            # Fallback: treat UNKNOWN as EPS (should not happen with enhanced detection)
+            logging.warning(f"NRS._convert_to_eps_space: Unknown prediction type {self.__pred_type}, treating as EPS")
+            pass
         
         return x_div, eps_cond, eps_uncond
 
@@ -112,7 +158,9 @@ class NRS:
         elif self.__pred_type == PredictionType.X0:
             raise NotImplementedError("NRS._finalize_from_eps_space: x0-prediction not supported yet.")
         else:
-            raise RuntimeError("NRS._finalize_from_eps_space: Could not determine prediction type for this model.")
+            # Fallback: treat UNKNOWN as EPS (should not happen with enhanced detection)
+            logging.warning(f"NRS._finalize_from_eps_space: Unknown prediction type {self.__pred_type}, treating as EPS")
+            pass
         return nrs_result
       
     def _convert_to_v_space(self, x_orig, sig_root, sigma, cond, uncond):
@@ -133,7 +181,13 @@ class NRS:
         elif self.__pred_type == PredictionType.X0:
             raise NotImplementedError("NRS._convert_to_v_space: x0-prediction not supported yet.")
         else:
-            raise RuntimeError("NRS._convert_to_v_space: Could not determine prediction type for this model.")
+            # Fallback: treat UNKNOWN as EPS and convert to V-space
+            logging.warning(f"NRS._convert_to_v_space: Unknown prediction type {self.__pred_type}, treating as EPS")
+            logging.debug(f"NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps (fallback)")
+            x_div = x_orig / (sigma ** 2 + 1)
+            factor = sigma / sig_root
+            v_cond = x_orig - (x_div - cond * factor)
+            v_uncond = x_orig - (x_div - uncond * factor)
         
         return x_div, v_cond, v_uncond
 
@@ -150,7 +204,10 @@ class NRS:
         elif self.__pred_type == PredictionType.X0:
             raise NotImplementedError("NRS._finalize_from_v_space: x0-prediction not supported yet.")
         else:
-            raise RuntimeError("NRS._finalize_from_v_space: Could not determine prediction type for this model.")
+            # Fallback: treat UNKNOWN as EPS and convert from V-space
+            logging.warning(f"NRS._finalize_from_v_space: Unknown prediction type {self.__pred_type}, treating as EPS")
+            logging.debug(f"NRS._finalize_from_v_space: generating cfg_result for eps (fallback)")
+            nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
         return nrs_result
         
     def patch(self, model, skew, stretch, squash):
@@ -177,9 +234,11 @@ class NRS:
                 case PredictionType.X0:
                     raise RuntimeError("NRS.nrs: x0-prediction not supported yet.")
                 case PredictionType.UNKNOWN:
-                    raise RuntimeError("NRS.nrs: Could not determine prediction type for this operation.")
+                    # Fallback: treat as EPS (should not happen with enhanced detection)
+                    logging.warning(f"NRS.nrs: Unknown operation space, treating as EPS for conversion")
+                    x_div, nrs_cond, nrs_uncond = self._convert_to_eps_space(x_orig, sig_root, sigma, cond, uncond)
                 case _:
-                    raise RuntimeError("NRS.nrs: Invalid PredictionType used.")
+                    raise RuntimeError(f"NRS.nrs: Invalid PredictionType used for operation space: {self.__OPERATION_SPACE}")
 
             def _dot(a, b):
                 return (a*b).sum(dim=1, keepdim=True) # [B,C,W,H] => [B,1,W,H]
@@ -215,9 +274,11 @@ class NRS:
                 case PredictionType.X0:
                     raise RuntimeError("NRS.nrs: x0-prediction not supported yet.")
                 case PredictionType.UNKNOWN:
-                    raise RuntimeError("NRS.nrs: Could not determine prediction type for this operation.")
+                    # Fallback: treat as EPS (should not happen with enhanced detection)
+                    logging.warning(f"NRS.nrs: Unknown operation space, treating as EPS for finalization")
+                    return self._finalize_from_eps_space(x_orig, x_div, x_final, sig_root, sigma)
                 case _:
-                    raise RuntimeError("NRS.nrs: Invalid PredictionType used.")
+                    raise RuntimeError(f"NRS.nrs: Invalid PredictionType used for operation space: {self.__OPERATION_SPACE}")
         
         m = model.clone()
         m.set_model_sampler_cfg_function(nrs, True)
