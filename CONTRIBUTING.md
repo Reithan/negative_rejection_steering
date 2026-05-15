@@ -13,17 +13,20 @@ Thank you for your interest in contributing! This document provides guidelines f
 ### Initial Setup
 
 1. **Clone the repository** (if you haven't already):
+
    ```bash
    git clone https://github.com/Reithan/negative_rejection_steering.git
    cd negative_rejection_steering
    ```
 
 2. **Create virtual environment with uv**:
+
    ```bash
    uv venv
    ```
 
 3. **Activate virtual environment**:
+
    ```bash
    # Git Bash (Windows)
    source .venv/Scripts/activate
@@ -39,17 +42,20 @@ Thank you for your interest in contributing! This document provides guidelines f
    ```
 
 4. **Install development dependencies**:
+
    ```bash
    uv pip install -e ".[dev]"
    ```
 
 5. **Install git hooks**:
+
    ```bash
    pre-commit install
    pre-commit install --hook-type pre-push
    ```
 
 6. **Verify setup**:
+
    ```bash
    # Run hooks manually on all files
    pre-commit run --all-files
@@ -69,16 +75,19 @@ Thank you for your interest in contributing! This document provides guidelines f
 ### Recommended Workflow
 
 1. **Create a feature branch**:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
 
    Or for bug fixes:
+
    ```bash
    git checkout -b fix/bug-description
    ```
 
 2. **Make your changes and commit**:
+
    ```bash
    git add <files>
    git commit -m "Your commit message"
@@ -86,12 +95,13 @@ Thank you for your interest in contributing! This document provides guidelines f
 
    The pre-commit hook will automatically:
    - Run ruff linting and auto-fix issues
-   - Check for trailing whitespace, EOF issues, etc.
+   - Check for trailing whitespace, missing final newlines, etc.
    - Block the commit if you're on the main branch
 
    If the linter auto-fixes files, you'll need to re-stage and commit again.
 
 3. **Push your branch**:
+
    ```bash
    git push origin feature/your-feature-name
    ```
@@ -106,7 +116,7 @@ Thank you for your interest in contributing! This document provides guidelines f
 
 ### Bypassing Hooks (Emergency Only)
 
-If you absolutely must bypass hooks (NOT recommended):
+If you must bypass hooks (NOT recommended):
 
 ```bash
 git commit --no-verify    # Skip pre-commit hooks
@@ -114,8 +124,9 @@ git push --no-verify      # Skip pre-push hooks
 ```
 
 **Warning**: Only use `--no-verify` in true emergencies. Bypassing hooks may:
+
 - Introduce linting issues
-- Break CI/CD pipelines
+- Break Continuous Integration/Continuous Deployment (CI/CD) pipelines
 - Allow untested code to be pushed
 
 ## Development Commands
@@ -190,6 +201,7 @@ Write clear, concise commit messages:
 - Add detailed description in the body if needed
 
 Good examples:
+
 ```
 Add support for XYZ model type
 Fix crash when prediction type is unknown
@@ -197,6 +209,7 @@ Update README with installation instructions
 ```
 
 Bad examples:
+
 ```
 fixed stuff
 WIP
