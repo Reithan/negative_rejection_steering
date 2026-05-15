@@ -72,7 +72,7 @@ class NRS:
                     pred_type = _RAW_TO_ENUM.get(p, PredictionType.UNKNOWN)
                     if pred_type != PredictionType.UNKNOWN:
                         logging.debug(f"NRS._get_pred_type: Found prediction type '{p}' from attribute '{attr}' -> {pred_type}")
-                    return pred_type
+                        return pred_type
 
             # 2) enqueue child containers we care about -------------------
             for attr in ("model", "diffusion_model", "config", "scheduler", "inner_model", "model_sampling"):
