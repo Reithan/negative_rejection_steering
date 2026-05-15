@@ -9,6 +9,10 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 2. NRS replaces CFG with 3 new knobs.
 3. NRS lets you to create cooler outputs than CFG.
 
+---
+
+**Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
+
 > [!TIP]
 > Skip to the [Beginner How-To](#beginner-how-to) if you want to just get started.
 
