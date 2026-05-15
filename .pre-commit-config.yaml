@@ -37,7 +37,7 @@ repos:
     hooks:
       - id: run-tests
         name: Run pytest tests
-        entry: bash -c 'if command -v pytest > /dev/null 2>&1; then pytest tests/ || exit 1; else echo "WARNING - pytest not found, skipping tests"; fi'
+        entry: bash -c 'if command -v uv > /dev/null 2>&1; then uv run pytest tests/ || exit 1; else echo "WARNING - uv not found, skipping tests"; fi'
         language: system
         stages: [pre-push]
         always_run: true
