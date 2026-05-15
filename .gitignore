@@ -172,3 +172,8 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+
+# AI agents
+.claude/settings.local.json
+.claude/docs/**
