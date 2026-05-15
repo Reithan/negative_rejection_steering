@@ -1,61 +1,91 @@
-"""Smoke tests to ensure project structure and files are valid."""
+"""Functional tests for NRS ComfyUI node and WebUI script."""
 
+import inspect
+import sys
 from pathlib import Path
 
-
-def test_required_files_exist():
-    """Test that all required project files exist."""
-    project_root = Path(__file__).parent.parent
-
-    # Check main directories and files exist
-    assert (project_root / "NRS").is_dir()
-    assert (project_root / "scripts").is_dir()
-    assert (project_root / "NRS" / "nodes_NRS.py").is_file()
-    assert (project_root / "scripts" / "negative_rejection_steering_script.py").is_file()
-    assert (project_root / "__init__.py").is_file()
-    assert (project_root / "pyproject.toml").is_file()
-    assert (project_root / "README.md").is_file()
-    assert (project_root / ".pre-commit-config.yaml").is_file() or True  # Will exist after Phase 4
+# Add project root to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
-def test_init_structure():
-    """Test __init__.py exports the required mappings (no imports, text check only)."""
-    project_root = Path(__file__).parent.parent
-    init_content = (project_root / "__init__.py").read_text()
+def test_nrs_node_comfyui_interface():
+    """Test that NRS node has required ComfyUI interface."""
+    from NRS.nodes_NRS import NRS
 
-    # Check for required exports
-    assert "NODE_CLASS_MAPPINGS" in init_content
-    assert "NRS" in init_content
-    assert "from .NRS.nodes_NRS import" in init_content
+    # Test class can be instantiated
+    node = NRS()
+    assert node is not None
+
+    # Test INPUT_TYPES classmethod exists and returns proper structure
+    assert hasattr(NRS, "INPUT_TYPES")
+    assert callable(NRS.INPUT_TYPES)
+    input_types = NRS.INPUT_TYPES()
+    assert isinstance(input_types, dict)
+    assert "required" in input_types
+    assert "model" in input_types["required"]
+    assert "skew" in input_types["required"]
+    assert "stretch" in input_types["required"]
+    assert "squash" in input_types["required"]
+
+    # Test patch method exists with correct signature
+    assert hasattr(node, "patch")
+    assert callable(node.patch)
+    sig = inspect.signature(node.patch)
+    params = list(sig.parameters.keys())
+    assert "model" in params
+    assert "skew" in params
+    assert "stretch" in params
+    assert "squash" in params
+
+    # Test required class attributes
+    assert hasattr(NRS, "RETURN_TYPES")
+    assert NRS.RETURN_TYPES == ("MODEL",)
+    assert hasattr(NRS, "FUNCTION")
+    assert NRS.FUNCTION == "patch"
+    assert hasattr(NRS, "CATEGORY")
+    assert NRS.CATEGORY == "advanced/model"
 
 
-def test_nrs_node_structure():
-    """Test NRS node file has expected structure (text check only, no imports)."""
-    project_root = Path(__file__).parent.parent
-    nrs_content = (project_root / "NRS" / "nodes_NRS.py").read_text()
+def test_nrs_script_webui_interface():
+    """Test that NRSScript has required WebUI/Gradio interface."""
+    from scripts.negative_rejection_steering_script import NRSScript
 
-    # Check for key classes and methods
-    assert "class NRS:" in nrs_content
-    assert "def INPUT_TYPES" in nrs_content
-    assert "def patch" in nrs_content
-    assert "class PredictionType" in nrs_content
-    assert "PredictionType.EPS" in nrs_content
-    assert "PredictionType.V" in nrs_content
-    assert "PredictionType.X0" in nrs_content
+    # Test class can be instantiated
+    script = NRSScript()
+    assert script is not None
+
+    # Test required methods exist
+    assert hasattr(script, "title")
+    assert callable(script.title)
+    assert isinstance(script.title(), str)
+
+    assert hasattr(script, "show")
+    assert callable(script.show)
+
+    assert hasattr(script, "ui")
+    assert callable(script.ui)
+
+    assert hasattr(script, "process_before_every_sampling")
+    assert callable(script.process_before_every_sampling)
+
+    # Test process_before_every_sampling has correct signature
+    sig = inspect.signature(script.process_before_every_sampling)
+    params = list(sig.parameters.keys())
+    # Note: 'self' is not included in signature, only other parameters
+    assert "p" in params
 
 
-def test_pyproject_has_dev_dependencies():
-    """Test that pyproject.toml has dev dependencies configured."""
-    project_root = Path(__file__).parent.parent
-    pyproject_content = (project_root / "pyproject.toml").read_text()
+def test_prediction_type_enum():
+    """Test PredictionType enum has required values."""
+    from NRS.nodes_NRS import PredictionType
 
-    # Check for dev dependencies
-    assert (
-        "[project.optional-dependencies]" in pyproject_content or "[tool.poetry.dev-dependencies]" in pyproject_content
-    )
-    assert "pytest" in pyproject_content
-    assert "ruff" in pyproject_content
-    assert "pre-commit" in pyproject_content
+    # Test enum has required prediction types
+    assert hasattr(PredictionType, "EPS")
+    assert hasattr(PredictionType, "V")
+    assert hasattr(PredictionType, "X0")
+    assert hasattr(PredictionType, "UNKNOWN")
 
-    # Check for ruff config
-    assert "[tool.ruff]" in pyproject_content
+    # Test enum values are distinct
+    assert PredictionType.EPS != PredictionType.V
+    assert PredictionType.V != PredictionType.X0
+    assert PredictionType.X0 != PredictionType.UNKNOWN
