@@ -1,0 +1,52 @@
+# See https://pre-commit.com for more information
+repos:
+  # Standard pre-commit hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-merge-conflict
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Ruff linter and formatter
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.12
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # Main branch protection (pre-commit)
+  - repo: local
+    hooks:
+      - id: prevent-commit-to-main
+        name: Prevent commits to main branch
+        entry: bash -c 'BRANCH=$(git branch --show-current); if [ "$BRANCH" = "main" ]; then echo "ERROR - Direct commits to main are not allowed. Create a feature branch instead."; exit 1; fi'
+        language: system
+        stages: [pre-commit]
+        always_run: true
+        pass_filenames: false
+
+  # Test execution (pre-push only)
+  - repo: local
+    hooks:
+      - id: run-tests
+        name: Run pytest tests
+        entry: bash -c 'if command -v uv > /dev/null 2>&1; then uv run pytest tests/ || exit 1; else echo "WARNING - uv not found, skipping tests"; fi'
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false
+
+      - id: prevent-push-to-main
+        name: Prevent pushes to main branch
+        entry: bash -c 'BRANCH=$(git branch --show-current); if [ "$BRANCH" = "main" ]; then echo "ERROR - Direct pushes to main are not allowed. Use pull requests instead."; exit 1; fi'
+        language: system
+        stages: [pre-push]
+        always_run: true
+        pass_filenames: false

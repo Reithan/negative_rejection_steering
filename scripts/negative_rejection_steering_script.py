@@ -1,11 +1,14 @@
-import gradio as gr
 import logging
 import sys
+import traceback
 from functools import partial
-from modules import scripts, script_callbacks
 from typing import Any
 
+import gradio as gr
+from modules import script_callbacks, scripts
+
 from NRS.nodes_NRS import NRS
+
 
 class NRSScript(scripts.Script):
     def __init__(self):
@@ -22,22 +25,39 @@ class NRSScript(scripts.Script):
 
     def show(self, is_img2img):
         return scripts.AlwaysVisible
-    
+
     def ui(self, *args, **kwargs):
         with gr.Accordion(open=False, label=self.title()):
             enabled = gr.Checkbox(label="Enable NRS", value=self.enabled)
             gr.HTML("<p><i>Adjust the settings for Negative Rejection Steering.</i></p>")
-            skew = gr.Slider(label="NRS Skew Scale", info="Adjusts the amount guidance is steered.", minimum=-30.0, maximum=30.0, step=0.01, value=self.skew)
-            stretch = gr.Slider(label="NRS Stretch Scale", info="Adjusts the amount guidance is amplified.", minimum=-30.0, maximum=30.0, step=0.01, value=self.stretch)
-            squash = gr.Slider(label="NRS Squash Multiplier", info="Adjusts the amount final guidance is normalized.", minimum=0.0, maximum=1.0, step=0.01, value=self.squash)
+            skew = gr.Slider(
+                label="NRS Skew Scale",
+                info="Adjusts the amount guidance is steered.",
+                minimum=-30.0,
+                maximum=30.0,
+                step=0.01,
+                value=self.skew,
+            )
+            stretch = gr.Slider(
+                label="NRS Stretch Scale",
+                info="Adjusts the amount guidance is amplified.",
+                minimum=-30.0,
+                maximum=30.0,
+                step=0.01,
+                value=self.stretch,
+            )
+            squash = gr.Slider(
+                label="NRS Squash Multiplier",
+                info="Adjusts the amount final guidance is normalized.",
+                minimum=0.0,
+                maximum=1.0,
+                step=0.01,
+                value=self.squash,
+            )
 
-        enabled.change(
-            lambda x: self.update_enabled(x),
-            inputs=[enabled]
-        )
+        enabled.change(lambda x: self.update_enabled(x), inputs=[enabled])
 
         return (enabled, skew, stretch, squash)
-    
 
     def update_enabled(self, value):
         self.enabled = value
@@ -70,21 +90,27 @@ class NRSScript(scripts.Script):
         unet = NRS().patch(unet, self.skew, self.stretch, self.squash)[0]
 
         p.sd_model.forge_objects.unet = unet
-        p.extra_generation_params.update({
-            "NRS_enabled": True,
-            "NRS_skew": self.skew,
-            "NRS_stretch": self.stretch,
-            "NRS_squash": self.squash,
-        })
+        p.extra_generation_params.update(
+            {
+                "NRS_enabled": True,
+                "NRS_skew": self.skew,
+                "NRS_stretch": self.stretch,
+                "NRS_squash": self.squash,
+            }
+        )
 
-        logging.debug(f"NRS: Enabled: {self.enabled}, Squash: {self.skew}, Stretch: {self.stretch}, Squash: {self.squash}")
+        logging.debug(
+            f"NRS: Enabled: {self.enabled}, Squash: {self.skew}, Stretch: {self.stretch}, Squash: {self.squash}"
+        )
 
         return
+
 
 def set_value(p, x: Any, xs: Any, *, field: str):
     if not hasattr(p, "_nrs_xyz"):
         p._nrs_xyz = {}
     p._nrs_xyz[field] = x
+
 
 def make_axis_on_xyz_grid():
     xyz_grid = None
@@ -98,10 +124,7 @@ def make_axis_on_xyz_grid():
 
     axis = [
         xyz_grid.AxisOption(
-            "(NRS) Enabled",
-            str,
-            partial(set_value, field="enabled"),
-            choices=lambda: ["True", "False"]
+            "(NRS) Enabled", str, partial(set_value, field="enabled"), choices=lambda: ["True", "False"]
         ),
         xyz_grid.AxisOption(
             "(NRS) Skew",
@@ -123,6 +146,7 @@ def make_axis_on_xyz_grid():
     if not any(x.label.startswith("(NRS)") for x in xyz_grid.axis_options):
         xyz_grid.axis_options.extend(axis)
 
+
 def on_before_ui():
     try:
         make_axis_on_xyz_grid()
@@ -132,5 +156,6 @@ def on_before_ui():
             f"[-] NRS Script: xyz_grid error:\n{error}",
             file=sys.stderr,
         )
+
 
 script_callbacks.on_before_ui(on_before_ui)
