@@ -73,6 +73,48 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 > [!WARNING] 
 > Don't set NRS values to negatives if there are things in your negative prompt you **actually** don't want to see.
 
+## Setup & Installation
+
+### ComfyUI
+<details>
+<summary>ComfyUI Setup Instructions</summary>
+
+#### Installation
+Install via ComfyUI Manager or manually clone this repository into your `ComfyUI/custom_nodes/` directory.
+
+#### Usage
+1. **Important**: Ignore the CFG setting on your KSampler node - NRS replaces CFG entirely
+2. Connect your model through the **Negative Rejection Steering** node before sampling
+3. Configure NRS parameters (Skew/Stretch/Squash) instead of using CFG
+
+#### Basic Workflow
+```
+Model → NRS Node → KSampler
+```
+
+**Pro tip**: To verify NRS is working correctly, set CFG to an extremely high value (like 30). If your output looks normal, NRS is functioning properly. If the output appears "turbo fried," check your node connections.
+
+![ComfyUI Workflow Example](https://github.com/user-attachments/assets/edaa36a4-9ad8-4a35-bad3-dda80138b996)
+</details>
+
+### Automatic1111 / Forge / reForge  
+<details>
+<summary>WebUI Setup Instructions</summary>
+
+#### Installation
+1. Install the extension through the Extensions tab in your WebUI
+2. Enable the extension and restart your WebUI
+
+#### Usage
+Once installed and enabled, the NRS settings panel will appear in your generation interface. When NRS is active:
+- **CFG Scale is ignored** - the WebUI may still show the CFG setting, but it has no effect
+- Use the NRS parameters (Skew/Stretch/Squash) to control generation instead
+- Follow the same parameter guidelines from the [Beginner How-To](#beginner-how-to) section
+</details>
+
+### StabilityMatrix Integration
+NRS is available as a **natively supported module** in [StabilityMatrix](https://lykos.ai/), providing an easy installation and management option for users of that platform.
+
 ## Submitted User Examples
 | User | CFG | NRS |
 | --- | --- | --- |
