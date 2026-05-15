@@ -4,26 +4,28 @@ from enum import Enum, auto
 import torch
 
 
+# fmt: off
 class PredictionType(Enum):
-    EPS = auto()  # ε-prediction
-    V = auto()  # v-prediction
-    X0 = auto()  # x₀-prediction
-    UNKNOWN = auto()  # couldn’t detect / new scheduler
+    EPS     = auto()   # ε-prediction
+    V       = auto()   # v-prediction
+    X0      = auto()   # x₀-prediction
+    UNKNOWN = auto()   # couldn’t detect / new scheduler
 
 
 _RAW_TO_ENUM = {
-    "eps": PredictionType.EPS,
-    "epsilon": PredictionType.EPS,
-    "flux": PredictionType.EPS,
-    "chroma": PredictionType.EPS,
-    "flow": PredictionType.EPS,  # FLOW models (WAN, etc.) are EPS-compatible
-    "wan": PredictionType.EPS,  # WAN21 is FLOW-based
-    "const": PredictionType.EPS,  # CONST prediction class used in FLOW models
-    "v": PredictionType.V,
+    "eps":          PredictionType.EPS,
+    "epsilon":      PredictionType.EPS,
+    "flux":         PredictionType.EPS,
+    "chroma":       PredictionType.EPS,
+    "flow":         PredictionType.EPS,  # FLOW models (WAN, etc.) are EPS-compatible
+    "wan":          PredictionType.EPS,  # WAN21 is FLOW-based
+    "const":        PredictionType.EPS,  # CONST prediction class used in FLOW models
+    "v":            PredictionType.V,
     "v_prediction": PredictionType.V,
-    "x0": PredictionType.X0,
-    "sample": PredictionType.X0,
+    "x0":           PredictionType.X0,
+    "sample":       PredictionType.X0,
 }
+# fmt: on
 
 
 class NRS:
