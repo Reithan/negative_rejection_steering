@@ -23,7 +23,77 @@ jobs:
         uses: actions/checkout@v5
         with:
           submodules: true
+          fetch-depth: 2  # Need HEAD and HEAD~1 for version comparison
+      - name: Check version increment
+        id: version_check
+        run: |
+          python3 << 'EOF'
+          import sys
+          import os
+          import subprocess
+          from packaging.version import parse as parse_version
+
+          def extract_version(file_content):
+              """Extract version string from pyproject.toml content."""
+              for line in file_content.split('\n'):
+                  if line.strip().startswith('version = '):
+                      version_str = line.split('=', 1)[1].strip()
+                      return version_str.strip('"').strip("'")
+              return None
+
+          def get_version_at_commit(commit_ref):
+              """Get version from pyproject.toml at a specific commit."""
+              try:
+                  result = subprocess.run(
+                      ['git', 'show', f'{commit_ref}:pyproject.toml'],
+                      capture_output=True,
+                      text=True,
+                      check=True
+                  )
+                  return extract_version(result.stdout)
+              except subprocess.CalledProcessError:
+                  return None
+
+          # Get current and previous versions
+          current_version_str = get_version_at_commit('HEAD')
+          if not current_version_str:
+              print("::error::Could not extract current version from pyproject.toml")
+              sys.exit(1)
+
+          previous_version_str = get_version_at_commit('HEAD~1')
+
+          # Handle first commit case
+          if not previous_version_str:
+              print(f"::notice::First version commit detected: {current_version_str}")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write("should_publish=true\n")
+              sys.exit(0)
+
+          # Parse and compare versions
+          try:
+              current_version = parse_version(current_version_str)
+              previous_version = parse_version(previous_version_str)
+          except Exception as e:
+              print(f"::error::Invalid version format - {e}")
+              print(f"Current: {current_version_str}, Previous: {previous_version_str}")
+              sys.exit(1)
+
+          # Version comparison logic
+          if current_version > previous_version:
+              print(f"::notice::Version increment detected: {previous_version_str} -> {current_version_str}")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write("should_publish=true\n")
+          elif current_version == previous_version:
+              print(f"::notice::Version unchanged: {current_version_str} - skipping publish")
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  f.write("should_publish=false\n")
+          else:
+              print(f"::error::Version downgrade detected: {previous_version_str} -> {current_version_str}")
+              print("::error::Version must increase. Downgrades would conflict with published versions.")
+              sys.exit(1)
+          EOF
       - name: Publish Custom Node
+        if: steps.version_check.outputs.should_publish == 'true'
         uses: Comfy-Org/publish-node-action@main
         with:
           personal_access_token: ${{ secrets.COMFY_REGISTRY_KEY }}
