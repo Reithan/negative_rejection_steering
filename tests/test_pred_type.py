@@ -15,7 +15,7 @@ import pytest
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from NRS.nodes_NRS import PredictionType, _RAW_TO_ENUM, NRS
+from NRS.nodes_NRS import _RAW_TO_ENUM, NRS, PredictionType
 
 
 def _make_model_sampling(class_name):
