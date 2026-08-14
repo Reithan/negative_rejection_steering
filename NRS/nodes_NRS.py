@@ -159,57 +159,14 @@ class NRS:
         )
         return PredictionType.EPS
 
-    def _convert_to_eps_space(self, x_orig, sig_root, sigma, cond, uncond):
-        x_div = None
-        eps_cond = cond
-        eps_uncond = uncond
-        if self.__pred_type == PredictionType.V:
-            # v → ε conversion
-            logging.debug("NRS._convert_to_eps_space: generating x_div, eps_cond, and eps_uncond for v-pred")
-            x_div = x_orig / (sigma**2 + 1)
-
-            eps_cond = ((x_div - (x_orig - cond)) * sig_root) / (sigma)
-            eps_uncond = ((x_div - (x_orig - uncond)) * sig_root) / (sigma)
-        elif self.__pred_type == PredictionType.EPS:
-            logging.debug("NRS._convert_to_eps_space: already in eps, no pre-scale needed")
-            pass  # already in ε space
-        elif self.__pred_type == PredictionType.X0:
-            raise NotImplementedError("NRS._convert_to_eps_space: x0-prediction not supported yet.")
-        else:
-            # Fallback: treat UNKNOWN as EPS (should not happen with enhanced detection)
-            logging.warning(f"NRS._convert_to_eps_space: Unknown prediction type {self.__pred_type}, treating as EPS")
-            pass
-
-        return x_div, eps_cond, eps_uncond
-
-    def _finalize_from_eps_space(self, x_orig, x_div, x_final, sig_root, sigma):
-        nrs_result = x_final
-        if self.__pred_type == PredictionType.V:
-            # ε → v conversion
-            logging.debug("NRS._finalize_from_eps_space: generating cfg_result for v-pred")
-            nrs_result = x_orig - (x_div - x_final * sigma / sig_root)
-        elif self.__pred_type == PredictionType.EPS:
-            # already in ε space
-            logging.debug("NRS._finalize_from_eps_space: already in eps, no post-scale needed")
-            pass
-        elif self.__pred_type == PredictionType.X0:
-            raise NotImplementedError("NRS._finalize_from_eps_space: x0-prediction not supported yet.")
-        else:
-            # Fallback: treat UNKNOWN as EPS (should not happen with enhanced detection)
-            logging.warning(
-                f"NRS._finalize_from_eps_space: Unknown prediction type {self.__pred_type}, treating as EPS"
-            )
-            pass
-        return nrs_result
-
-    def _convert_to_v_space(self, x_orig, sig_root, sigma, cond, uncond):
+    def _convert_to_v_space(self, x_orig, sig_root, sigma, cond, uncond, pred_type):
         x_div = None
         v_cond = cond
         v_uncond = uncond
-        if self.__pred_type == PredictionType.V:
+        if pred_type == PredictionType.V:
             logging.debug("NRS._convert_to_v_space: already in v, no pre-scale needed")
             pass  # already in v space
-        elif self.__pred_type == PredictionType.EPS:
+        elif pred_type == PredictionType.EPS:
             # ε → v conversion
             logging.debug("NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps")
             x_div = x_orig / (sigma**2 + 1)
@@ -217,11 +174,11 @@ class NRS:
 
             v_cond = x_orig - (x_div - cond * factor)
             v_uncond = x_orig - (x_div - uncond * factor)
-        elif self.__pred_type == PredictionType.X0:
+        elif pred_type == PredictionType.X0:
             raise NotImplementedError("NRS._convert_to_v_space: x0-prediction not supported yet.")
         else:
             # Fallback: treat UNKNOWN as EPS and convert to V-space
-            logging.warning(f"NRS._convert_to_v_space: Unknown prediction type {self.__pred_type}, treating as EPS")
+            logging.warning(f"NRS._convert_to_v_space: Unknown prediction type {pred_type}, treating as EPS")
             logging.debug("NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps (fallback)")
             x_div = x_orig / (sigma**2 + 1)
             factor = sigma / sig_root
@@ -230,32 +187,30 @@ class NRS:
 
         return x_div, v_cond, v_uncond
 
-    def _finalize_from_v_space(self, x_orig, x_div, x_final, sig_root, sigma):
+    def _finalize_from_v_space(self, x_orig, x_div, x_final, sig_root, sigma, pred_type):
         nrs_result = x_final
-        if self.__pred_type == PredictionType.V:
+        if pred_type == PredictionType.V:
             # already in v space
             logging.debug("NRS._finalize_from_v_space: already in v, no post-scale needed")
             pass
-        elif self.__pred_type == PredictionType.EPS:
+        elif pred_type == PredictionType.EPS:
             # v → ε conversion
             logging.debug("NRS._finalize_from_v_space: generating cfg_result for eps")
             nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
-        elif self.__pred_type == PredictionType.X0:
+        elif pred_type == PredictionType.X0:
             raise NotImplementedError("NRS._finalize_from_v_space: x0-prediction not supported yet.")
         else:
             # Fallback: treat UNKNOWN as EPS and convert from V-space
-            logging.warning(f"NRS._finalize_from_v_space: Unknown prediction type {self.__pred_type}, treating as EPS")
+            logging.warning(f"NRS._finalize_from_v_space: Unknown prediction type {pred_type}, treating as EPS")
             logging.debug("NRS._finalize_from_v_space: generating cfg_result for eps (fallback)")
             nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
         return nrs_result
 
     def patch(self, model, skew, stretch, squash):
-        self.__pred_type = self._get_pred_type(model) if not hasattr(self, "__pred_type") else self.__pred_type
-        self.__OPERATION_SPACE = PredictionType.V
+        pred_type = self._get_pred_type(model)
 
         def nrs(args):
             logging.debug(f"NRS.nrs: Skew: {skew}, Stretch: {stretch}, Squash: {squash}")
-            # self.__pred_type = self.__pred_type if self.__pred_type is not None else self._get_pred_type(model)
             cond = args["cond"]
             uncond = args["uncond"]
             x_orig = args["input"]
@@ -264,22 +219,10 @@ class NRS:
             sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
             sig_root = (sigma**2 + 1).sqrt()
 
-            x_div, nrs_cond, nrs_uncond = None, None, None
-            match self.__OPERATION_SPACE:
-                case PredictionType.V:
-                    x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond)
-                case PredictionType.EPS:
-                    x_div, nrs_cond, nrs_uncond = self._convert_to_eps_space(x_orig, sig_root, sigma, cond, uncond)
-                case PredictionType.X0:
-                    raise RuntimeError("NRS.nrs: x0-prediction not supported yet.")
-                case PredictionType.UNKNOWN:
-                    # Fallback: treat as EPS (should not happen with enhanced detection)
-                    logging.warning("NRS.nrs: Unknown operation space, treating as EPS for conversion")
-                    x_div, nrs_cond, nrs_uncond = self._convert_to_eps_space(x_orig, sig_root, sigma, cond, uncond)
-                case _:
-                    raise RuntimeError(
-                        f"NRS.nrs: Invalid PredictionType used for operation space: {self.__OPERATION_SPACE}"
-                    )
+            # Operation space is hardcoded to V for now; FLOW is added in a later PR.
+            x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(
+                x_orig, sig_root, sigma, cond, uncond, pred_type
+            )
 
             def _dot(a, b):
                 return (a * b).sum(dim=1, keepdim=True)  # [B,C,W,H] => [B,1,W,H]
@@ -307,21 +250,7 @@ class NRS:
             squash_scale = (1 - squash) + (squash * (cond_len / nrs_len))
             x_final = skewed * squash_scale
 
-            match self.__OPERATION_SPACE:
-                case PredictionType.V:
-                    return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma)
-                case PredictionType.EPS:
-                    return self._finalize_from_eps_space(x_orig, x_div, x_final, sig_root, sigma)
-                case PredictionType.X0:
-                    raise RuntimeError("NRS.nrs: x0-prediction not supported yet.")
-                case PredictionType.UNKNOWN:
-                    # Fallback: treat as EPS (should not happen with enhanced detection)
-                    logging.warning("NRS.nrs: Unknown operation space, treating as EPS for finalization")
-                    return self._finalize_from_eps_space(x_orig, x_div, x_final, sig_root, sigma)
-                case _:
-                    raise RuntimeError(
-                        f"NRS.nrs: Invalid PredictionType used for operation space: {self.__OPERATION_SPACE}"
-                    )
+            return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, pred_type)
 
         m = model.clone()
         m.set_model_sampler_cfg_function(nrs, True)
