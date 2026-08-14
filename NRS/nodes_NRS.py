@@ -1,7 +1,40 @@
 import logging
+import math
 from enum import Enum, auto
 
 import torch
+
+try:
+    import comfy.utils as _comfy_utils
+except Exception:
+    _comfy_utils = None
+
+
+def _unpack_latents(combined, latent_shapes):
+    """Split a flat packed latent [B, 1, N] back into its per-stream tensors.
+
+    Mirrors comfy.utils.unpack_latents: for each shape in latent_shapes, take
+    math.prod(shape[1:]) elements off the last dim and reshape that [B, 1, n]
+    slice back to `shape`.
+    """
+    streams = []
+    offset = 0
+    for shape in latent_shapes:
+        n = math.prod(shape[1:])
+        chunk = combined[:, :, offset : offset + n]
+        streams.append(chunk.reshape(shape))
+        offset += n
+    return streams
+
+
+def _pack_latents(streams):
+    """Pack a list of per-stream tensors [B, C, ...] into a flat [B, 1, N] tensor.
+
+    Mirrors comfy.utils.pack_latents: each stream is reshaped to (B, 1, -1)
+    and concatenated on the last dim.
+    """
+    flat = [s.reshape(s.shape[0], 1, -1) for s in streams]
+    return torch.cat(flat, dim=-1)
 
 
 # fmt: off
