@@ -42,6 +42,7 @@ class PredictionType(Enum):
     EPS     = auto()   # ε-prediction
     V       = auto()   # v-prediction
     X0      = auto()   # x₀-prediction
+    FLOW    = auto()   # flow-matching / velocity — operated natively, no VP conversion
     UNKNOWN = auto()   # couldn’t detect / new scheduler
 
 
@@ -196,9 +197,9 @@ class NRS:
         x_div = None
         v_cond = cond
         v_uncond = uncond
-        if pred_type == PredictionType.V:
-            logging.debug("NRS._convert_to_v_space: already in v, no pre-scale needed")
-            pass  # already in v space
+        if pred_type in (PredictionType.V, PredictionType.FLOW):
+            logging.debug("NRS._convert_to_v_space: already in v/flow, no pre-scale needed")
+            pass  # already in v space / flow-matching operated natively
         elif pred_type == PredictionType.EPS:
             # ε → v conversion
             logging.debug("NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps")
@@ -222,9 +223,9 @@ class NRS:
 
     def _finalize_from_v_space(self, x_orig, x_div, x_final, sig_root, sigma, pred_type):
         nrs_result = x_final
-        if pred_type == PredictionType.V:
-            # already in v space
-            logging.debug("NRS._finalize_from_v_space: already in v, no post-scale needed")
+        if pred_type in (PredictionType.V, PredictionType.FLOW):
+            # already in v space / flow-matching operated natively
+            logging.debug("NRS._finalize_from_v_space: already in v/flow, no post-scale needed")
             pass
         elif pred_type == PredictionType.EPS:
             # v → ε conversion
@@ -244,7 +245,7 @@ class NRS:
         sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
         sig_root = (sigma**2 + 1).sqrt()
 
-        # Operation space is hardcoded to V for now; FLOW is added in a later PR.
+        # V and FLOW models are operated natively (identity); EPS models are converted to v-space.
         x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, pred_type)
 
         def _dot(a, b):
