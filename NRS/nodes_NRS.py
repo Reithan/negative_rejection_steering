@@ -42,17 +42,18 @@ class PredictionType(Enum):
     EPS     = auto()   # ε-prediction
     V       = auto()   # v-prediction
     X0      = auto()   # x₀-prediction
+    FLOW    = auto()   # flow-matching / velocity — operated natively, no VP conversion
     UNKNOWN = auto()   # couldn’t detect / new scheduler
 
 
 _RAW_TO_ENUM = {
     "eps":          PredictionType.EPS,
     "epsilon":      PredictionType.EPS,
-    "flux":         PredictionType.EPS,
-    "chroma":       PredictionType.EPS,
-    "flow":         PredictionType.EPS,  # FLOW models (WAN, etc.) are EPS-compatible
-    "wan":          PredictionType.EPS,  # WAN21 is FLOW-based
-    "const":        PredictionType.EPS,  # CONST prediction class used in FLOW models
+    "flux":         PredictionType.FLOW,
+    "chroma":       PredictionType.FLOW,
+    "flow":         PredictionType.FLOW,  # FLOW models (WAN, etc.) operated natively
+    "wan":          PredictionType.FLOW,  # WAN21 is FLOW-based
+    "const":        PredictionType.FLOW,  # CONST prediction class used in FLOW models
     "v":            PredictionType.V,
     "v_prediction": PredictionType.V,
     "x0":           PredictionType.X0,
@@ -158,8 +159,8 @@ class NRS:
 
                 # CONST class is used by FLOW models (WAN21, Flux, etc.)
                 if "const" in sampling_class_name:
-                    logging.debug("NRS._get_pred_type: Detected FLOW model via CONST sampling class -> EPS")
-                    return PredictionType.EPS
+                    logging.debug("NRS._get_pred_type: Detected FLOW model via CONST sampling class -> FLOW")
+                    return PredictionType.FLOW
                 elif "v_prediction" in sampling_class_name:
                     logging.debug("NRS._get_pred_type: Detected V-prediction model via sampling class -> V")
                     return PredictionType.V
@@ -173,8 +174,8 @@ class NRS:
                 logging.debug(f"NRS._get_pred_type: Found model.model.model_type: {model_type_str}")
 
                 if "flow" in model_type_str or "flux" in model_type_str:
-                    logging.debug("NRS._get_pred_type: Detected FLOW/Flux model via model_type -> EPS")
-                    return PredictionType.EPS
+                    logging.debug("NRS._get_pred_type: Detected FLOW/Flux model via model_type -> FLOW")
+                    return PredictionType.FLOW
                 elif "v_prediction" in model_type_str:
                     logging.debug("NRS._get_pred_type: Detected V-prediction model via model_type -> V")
                     return PredictionType.V
@@ -196,9 +197,9 @@ class NRS:
         x_div = None
         v_cond = cond
         v_uncond = uncond
-        if pred_type == PredictionType.V:
-            logging.debug("NRS._convert_to_v_space: already in v, no pre-scale needed")
-            pass  # already in v space
+        if pred_type in (PredictionType.V, PredictionType.FLOW):
+            logging.debug("NRS._convert_to_v_space: already in v/flow, no pre-scale needed")
+            pass  # already in v space / flow-matching operated natively
         elif pred_type == PredictionType.EPS:
             # ε → v conversion
             logging.debug("NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps")
@@ -222,9 +223,9 @@ class NRS:
 
     def _finalize_from_v_space(self, x_orig, x_div, x_final, sig_root, sigma, pred_type):
         nrs_result = x_final
-        if pred_type == PredictionType.V:
-            # already in v space
-            logging.debug("NRS._finalize_from_v_space: already in v, no post-scale needed")
+        if pred_type in (PredictionType.V, PredictionType.FLOW):
+            # already in v space / flow-matching operated natively
+            logging.debug("NRS._finalize_from_v_space: already in v/flow, no post-scale needed")
             pass
         elif pred_type == PredictionType.EPS:
             # v → ε conversion
@@ -244,7 +245,7 @@ class NRS:
         sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
         sig_root = (sigma**2 + 1).sqrt()
 
-        # Operation space is hardcoded to V for now; FLOW is added in a later PR.
+        # V and FLOW models are operated natively (identity); EPS models are converted to v-space.
         x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, pred_type)
 
         def _dot(a, b):
