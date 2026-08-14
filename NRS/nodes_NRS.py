@@ -1,3 +1,7 @@
+# ruff: noqa: N999 -- filename predates NRS/__init__.py; mixed-case "nodes_NRS"
+# only became checkable once NRS became a regular (non-namespace) package here.
+# Renaming it is out of scope (would break existing imports); pyproject.toml's
+# per-file-ignores already carve out N802/N804 for this same file.
 import logging
 import math
 from enum import Enum, auto
@@ -8,6 +12,9 @@ try:
     import comfy.utils as _comfy_utils
 except Exception:
     _comfy_utils = None
+
+# Must be bumped together with the `version` field in pyproject.toml at release time.
+__version__ = "0.7.4"
 
 
 def _unpack_latents(combined, latent_shapes):
@@ -278,6 +285,7 @@ class NRS:
 
     def patch(self, model, skew, stretch, squash):
         pred_type = self._get_pred_type(model)
+        logging.info(f"NRS v{__version__}: prediction type detected -> {pred_type.name}")
         warned = {"done": False}
 
         def nrs(args):

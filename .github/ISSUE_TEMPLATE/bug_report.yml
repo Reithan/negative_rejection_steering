@@ -1,0 +1,160 @@
+name: Bug Report
+description: Report unexpected NRS behavior or a crash
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Please fill out as much detail as you can — NRS's guidance behavior is sensitive to model type and node settings, so precise details help a lot.
+
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform / UI
+      description: Which UI/front-end are you running NRS through?
+      options:
+        - ComfyUI
+        - AUTOMATIC1111
+        - Forge
+        - reForge
+        - Forge Neo
+        - Stability Matrix
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: platform-other
+    attributes:
+      label: Platform / UI (if "Other")
+      description: If you selected "Other" above, name the platform/UI here.
+      placeholder: e.g. SD.Next, a custom fork, etc.
+    validations:
+      required: false
+
+  - type: input
+    id: platform-version
+    attributes:
+      label: Platform version
+      description: >
+        The version of whichever platform you selected above. Found in that
+        platform's UI (e.g. Help/About, Settings) or its startup console
+        output.
+      placeholder: e.g. 0.3.30 (ComfyUI) or v1.10.1 (AUTOMATIC1111/Forge)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: model-family
+    attributes:
+      label: Model / sampler family
+      description: Which model or sampler family were you using when the issue occurred?
+      options:
+        - MiniMax H3
+        - Flux
+        - Chroma
+        - WAN
+        - SDXL
+        - SD 1.5
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: model-family-other
+    attributes:
+      label: Model / sampler family (if "Other")
+      description: If you selected "Other" above, name the model/sampler family here.
+      placeholder: e.g. custom checkpoint, HunyuanVideo, etc.
+    validations:
+      required: false
+
+  - type: input
+    id: nrs-version
+    attributes:
+      label: NRS version
+      description: >
+        Look for the NRS log line in your console/terminal:
+        `NRS v<version>: prediction type detected -> <TYPE>` (printed when
+        NRS runs, or check the extension's about/version info, depending on
+        your platform). Copy the version number from that line.
+      placeholder: e.g. 0.7.4
+    validations:
+      required: true
+
+  - type: input
+    id: pred-type
+    attributes:
+      label: Detected prediction type
+      description: >
+        From the same NRS log line as above
+        (`NRS v<version>: prediction type detected -> <TYPE>`), copy the
+        detected type (e.g. EPS, V, FLOW, UNKNOWN).
+      placeholder: e.g. FLOW
+    validations:
+      required: true
+
+  - type: input
+    id: skew
+    attributes:
+      label: Skew value
+      placeholder: e.g. 2.00
+    validations:
+      required: true
+
+  - type: input
+    id: stretch
+    attributes:
+      label: Stretch value
+      placeholder: e.g. 5.00
+    validations:
+      required: true
+
+  - type: input
+    id: squash
+    attributes:
+      label: Squash value
+      placeholder: e.g. 0.75
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What did you expect to happen?
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What actually happened? Include screenshots if relevant.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Minimal steps (or an attached workflow JSON) to reproduce the issue.
+      placeholder: |
+        1. Load workflow...
+        2. Set Skew/Stretch/Squash to...
+        3. Queue prompt...
+    validations:
+      required: true
+
+  - type: textarea
+    id: console-log
+    attributes:
+      label: Console log output
+      description: >
+        Paste the relevant console output, including the
+        `NRS v<version>: prediction type detected -> <TYPE>` line and any
+        errors/warnings/tracebacks.
+      render: shell
+    validations:
+      required: true
