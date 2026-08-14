@@ -19,6 +19,7 @@ body:
         - Forge
         - reForge
         - Forge Neo
+        - Stability Matrix
         - Other (specify below)
     validations:
       required: true
