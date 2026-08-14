@@ -1,0 +1,45 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  test:
+    name: Test suite with branch coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install real CPU torch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+
+      - name: Install test tooling
+        run: pip install pytest pytest-cov diff-cover
+
+      - name: Run tests with branch coverage
+        run: pytest --cov=NRS --cov-branch --cov-report=xml --cov-report=term-missing
+
+      - name: Determine base branch for diff-cover
+        id: base
+        run: |
+          base_ref="origin/main"
+          if [ "${{ github.event_name }}" = "pull_request" ] && git rev-parse --verify "origin/${{ github.base_ref }}" >/dev/null 2>&1; then
+            base_ref="origin/${{ github.base_ref }}"
+          fi
+          echo "ref=${base_ref}" >> "$GITHUB_OUTPUT"
+
+      - name: Enforce 90% branch coverage on changed code
+        run: diff-cover coverage.xml --compare-branch=${{ steps.base.outputs.ref }} --branch-coverage --fail-under=90
