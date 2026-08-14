@@ -9,6 +9,42 @@ body:
         Thanks for taking the time to report a bug. Please fill out as much detail as you can — NRS's guidance behavior is sensitive to model type and node settings, so precise details help a lot.
 
   - type: dropdown
+    id: platform
+    attributes:
+      label: Platform / UI
+      description: Which UI/front-end are you running NRS through?
+      options:
+        - ComfyUI
+        - AUTOMATIC1111
+        - Forge
+        - reForge
+        - Forge Neo
+        - Other (specify below)
+    validations:
+      required: true
+
+  - type: input
+    id: platform-other
+    attributes:
+      label: Platform / UI (if "Other")
+      description: If you selected "Other" above, name the platform/UI here.
+      placeholder: e.g. SD.Next, a custom fork, etc.
+    validations:
+      required: false
+
+  - type: input
+    id: platform-version
+    attributes:
+      label: Platform version
+      description: >
+        The version of whichever platform you selected above. Found in that
+        platform's UI (e.g. Help/About, Settings) or its startup console
+        output.
+      placeholder: e.g. 0.3.30 (ComfyUI) or v1.10.1 (AUTOMATIC1111/Forge)
+    validations:
+      required: true
+
+  - type: dropdown
     id: model-family
     attributes:
       label: Model / sampler family
@@ -34,22 +70,14 @@ body:
       required: false
 
   - type: input
-    id: comfyui-version
-    attributes:
-      label: ComfyUI version
-      description: Found in the ComfyUI menu (Help/About) or via `comfyui --version`.
-      placeholder: e.g. 0.3.30
-    validations:
-      required: true
-
-  - type: input
     id: nrs-version
     attributes:
       label: NRS version
       description: >
-        Look for the console log line printed when the NRS node runs:
-        `NRS v<version>: prediction type detected -> <TYPE>`.
-        Copy the version number from that line.
+        Look for the NRS log line in your console/terminal:
+        `NRS v<version>: prediction type detected -> <TYPE>` (printed when
+        NRS runs, or check the extension's about/version info, depending on
+        your platform). Copy the version number from that line.
       placeholder: e.g. 0.7.4
     validations:
       required: true
@@ -59,7 +87,7 @@ body:
     attributes:
       label: Detected prediction type
       description: >
-        From the same console log line as above
+        From the same NRS log line as above
         (`NRS v<version>: prediction type detected -> <TYPE>`), copy the
         detected type (e.g. EPS, V, FLOW, UNKNOWN).
       placeholder: e.g. FLOW
