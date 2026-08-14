@@ -239,51 +239,89 @@ class NRS:
             nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
         return nrs_result
 
+    def _apply_guidance(self, x_orig, cond, uncond, sigma, skew, stretch, squash, pred_type):
+        """Run the NRS geometry pipeline on a single (already-unpacked, channels-first) stream."""
+        sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
+        sig_root = (sigma**2 + 1).sqrt()
+
+        # Operation space is hardcoded to V for now; FLOW is added in a later PR.
+        x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, pred_type)
+
+        def _dot(a, b):
+            return (a * b).sum(dim=1, keepdim=True)  # [B,C,W,H] => [B,1,W,H]
+
+        def _nrm2(v):
+            return _dot(v, v)
+
+        eps = torch.finfo(nrs_cond.dtype).eps
+        c_dot_c = _nrm2(nrs_cond) + eps  # [B,1,W,H]
+        u_dot_c = _dot(nrs_uncond, nrs_cond)  # [B,1,W,H]
+        u_on_c = (u_dot_c / c_dot_c) * nrs_cond  # [B,1,W,H] * [B,C,H,W]
+
+        # Amplify Cond based on length compared to projection of uncond
+        proj_diff = nrs_cond - u_on_c
+        stretched = nrs_cond + (stretch * proj_diff)
+
+        # Skew/Steer Conf based on rejection of uncond on cond
+        u_rej_c = nrs_uncond - u_on_c
+        skewed = stretched - (skew * u_rej_c)
+
+        # Squash final length back down to original length of cond
+        cond_len = nrs_cond.norm(dim=1, keepdim=True)
+        nrs_len = skewed.norm(dim=1, keepdim=True) + eps
+
+        squash_scale = (1 - squash) + (squash * (cond_len / nrs_len))
+        x_final = skewed * squash_scale
+
+        return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, pred_type)
+
     def patch(self, model, skew, stretch, squash):
         pred_type = self._get_pred_type(model)
+        warned = {"done": False}
 
         def nrs(args):
             logging.debug(f"NRS.nrs: Skew: {skew}, Stretch: {stretch}, Squash: {squash}")
             cond = args["cond"]
             uncond = args["uncond"]
             x_orig = args["input"]
-
             sigma = args["sigma"]
-            sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
-            sig_root = (sigma**2 + 1).sqrt()
 
-            # Operation space is hardcoded to V for now; FLOW is added in a later PR.
-            x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(
-                x_orig, sig_root, sigma, cond, uncond, pred_type
-            )
+            shapes = getattr(args["model"], "latent_shapes", None)
+            if shapes and len(shapes) > 1:
+                if _comfy_utils is not None and hasattr(_comfy_utils, "unpack_latents"):
+                    cond_streams = _comfy_utils.unpack_latents(cond, shapes)
+                    uncond_streams = _comfy_utils.unpack_latents(uncond, shapes)
+                    x_streams = _comfy_utils.unpack_latents(x_orig, shapes)
+                else:
+                    cond_streams = _unpack_latents(cond, shapes)
+                    uncond_streams = _unpack_latents(uncond, shapes)
+                    x_streams = _unpack_latents(x_orig, shapes)
+            else:
+                cond_streams, uncond_streams, x_streams = [cond], [uncond], [x_orig]
 
-            def _dot(a, b):
-                return (a * b).sum(dim=1, keepdim=True)  # [B,C,W,H] => [B,1,W,H]
+            if not warned["done"]:
+                for stream in x_streams:
+                    if stream.shape[1] == 1:
+                        logging.warning(
+                            f"NRS.nrs: routed stream has a singleton reduction axis {tuple(stream.shape)}; "
+                            "NRS geometry (dot/proj/skew) will degenerate to a no-op on this stream."
+                        )
+                        warned["done"] = True
+                        break
 
-            def _nrm2(v):
-                return _dot(v, v)
+            results = [
+                self._apply_guidance(
+                    x_streams[i], cond_streams[i], uncond_streams[i], sigma, skew, stretch, squash, pred_type
+                )
+                for i in range(len(cond_streams))
+            ]
 
-            eps = torch.finfo(nrs_cond.dtype).eps
-            c_dot_c = _nrm2(nrs_cond) + eps  # [B,1,W,H]
-            u_dot_c = _dot(nrs_uncond, nrs_cond)  # [B,1,W,H]
-            u_on_c = (u_dot_c / c_dot_c) * nrs_cond  # [B,1,W,H] * [B,C,H,W]
+            if len(results) == 1:
+                return results[0]
 
-            # Amplify Cond based on length compared to projection of uncond
-            proj_diff = nrs_cond - u_on_c
-            stretched = nrs_cond + (stretch * proj_diff)
-
-            # Skew/Steer Conf based on rejection of uncond on cond
-            u_rej_c = nrs_uncond - u_on_c
-            skewed = stretched - (skew * u_rej_c)
-
-            # Squash final length back down to original length of cond
-            cond_len = nrs_cond.norm(dim=1, keepdim=True)
-            nrs_len = skewed.norm(dim=1, keepdim=True) + eps
-
-            squash_scale = (1 - squash) + (squash * (cond_len / nrs_len))
-            x_final = skewed * squash_scale
-
-            return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, pred_type)
+            if _comfy_utils is not None and hasattr(_comfy_utils, "pack_latents"):
+                return _comfy_utils.pack_latents(results)[0]
+            return _pack_latents(results)
 
         m = model.clone()
         m.set_model_sampler_cfg_function(nrs, True)
