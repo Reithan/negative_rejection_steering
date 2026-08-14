@@ -14,7 +14,7 @@ except Exception:
     _comfy_utils = None
 
 # Must be bumped together with the `version` field in pyproject.toml at release time.
-__version__ = "0.7.4"
+__version__ = "1.0.0"
 
 
 def _unpack_latents(combined, latent_shapes):
