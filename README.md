@@ -119,6 +119,15 @@ Once installed and enabled, the NRS settings panel will appear in your generatio
 ### StabilityMatrix Integration
 NRS is available as a **natively supported module** in [StabilityMatrix](https://lykos.ai/), providing an easy installation and management option for users of that platform.
 
+### NRS for Video
+When using NRS with **video** models (e.g. MiniMax H3), two things need to be turned off or output quality suffers:
+- **Caching accelerators** (EasyCache, TeaCache, etc.) — their change-thresholded caching skips model evaluations that NRS relies on. With NRS active, this causes motion stutter and audio artifacts.
+- **Multistep samplers** (`res_multistep`, `dpmpp_2m`, `dpmpp_3m_sde`, and other history/"m" samplers) — they extrapolate NRS's guidance across steps, compounding instability over the clip. Use a memoryless sampler instead; **`euler_ancestral` is recommended** (`euler` and `heun` also work well).
+
+NRS adds a second inference pass per step, like CFG, so video generation time increases accordingly. Consider reserving NRS for final generations or prompts that need extra adherence.
+
+These caveats are video-specific — 2D image generation is unaffected.
+
 ## Submitted User Examples
 | User | CFG | NRS |
 | --- | --- | --- |
