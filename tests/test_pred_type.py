@@ -1,14 +1,17 @@
-"""Regression tests for NRS._get_pred_type and _RAW_TO_ENUM mappings.
+"""Regression tests for NRS._get_pred_type, _RAW_TO_ENUM mappings, and the
+V/FLOW/EPS operation-space conversion helpers.
 
-These tests pin CURRENT behavior (flow-family names resolve to EPS) as a
-safety net ahead of the FLOW reclassification planned for a later PR. If
-this file needs updating because flow-family names now map to
-PredictionType.FLOW, that is expected -- it means the reclassification
-landed and this net did its job.
+PR-3 reclassified the flow-matching family (flux, chroma, flow, wan, const)
+from PredictionType.EPS onto a new PredictionType.FLOW, which is operated
+natively (identity conversion, no VP ε<->v algebra). These tests pin that
+post-reclassification behavior at both detection sites (the _RAW_TO_ENUM
+dict and the enhanced-detection fallback in _get_pred_type), and cover the
+FLOW identity round-trip through _convert_to_v_space / _finalize_from_v_space.
 """
 
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -41,11 +44,11 @@ class _StubModel:
     [
         ("eps", PredictionType.EPS),
         ("epsilon", PredictionType.EPS),
-        ("flux", PredictionType.EPS),
-        ("chroma", PredictionType.EPS),
-        ("flow", PredictionType.EPS),
-        ("wan", PredictionType.EPS),
-        ("const", PredictionType.EPS),
+        ("flux", PredictionType.FLOW),
+        ("chroma", PredictionType.FLOW),
+        ("flow", PredictionType.FLOW),
+        ("wan", PredictionType.FLOW),
+        ("const", PredictionType.FLOW),
         ("v", PredictionType.V),
         ("v_prediction", PredictionType.V),
         ("x0", PredictionType.X0),
@@ -80,22 +83,29 @@ class TestGetPredTypeDirectAttribute:
         model = _StubModel(model_type="x0")
         assert node._get_pred_type(model) == PredictionType.X0
 
-    def test_model_type_flow_family_is_currently_eps(self):
-        """Flow-family models currently resolve to EPS (pre-reclassification)."""
+    def test_model_type_flow_is_flow(self):
+        """Flow-family models resolve to FLOW (native operation, no VP conversion)."""
         model = _StubModel(model_type="flow")
-        assert NRS()._get_pred_type(model) == PredictionType.EPS
+        assert NRS()._get_pred_type(model) == PredictionType.FLOW
 
-    def test_model_type_wan_is_currently_eps(self):
+    def test_model_type_wan_is_flow(self):
         model = _StubModel(model_type="wan")
-        assert NRS()._get_pred_type(model) == PredictionType.EPS
+        assert NRS()._get_pred_type(model) == PredictionType.FLOW
 
 
 class TestGetPredTypeEnhancedDetectionFallback:
-    """The model_sampling class-name and model.model.model_type fallback paths."""
+    """The model_sampling class-name and model.model.model_type fallback paths.
 
-    def test_model_sampling_const_class_is_eps(self):
+    Each stub below is deliberately built so the only detectable signal lives
+    in the fallback (section 3) logic -- not an exact _RAW_TO_ENUM key hit
+    during the BFS walk -- so these tests genuinely exercise the fallback
+    branches rather than just re-testing the dict.
+    """
+
+    def test_model_sampling_const_class_is_flow(self):
+        """A CONST-like model_sampling class name is the only flow signal here."""
         model = _StubModel(model_sampling=_make_model_sampling("ModelSamplingContinuousEDMConst"))
-        assert NRS()._get_pred_type(model) == PredictionType.EPS
+        assert NRS()._get_pred_type(model) == PredictionType.FLOW
 
     def test_model_sampling_v_prediction_class_is_v(self):
         model = _StubModel(model_sampling=_make_model_sampling("ModelSamplingV_Prediction"))
@@ -105,7 +115,83 @@ class TestGetPredTypeEnhancedDetectionFallback:
         model = _StubModel(model_sampling=_make_model_sampling("ModelSamplingEps"))
         assert NRS()._get_pred_type(model) == PredictionType.EPS
 
+    def test_inner_model_type_flow_string_is_flow(self):
+        """A model.model.model_type whose str() merely *contains* 'flow' (e.g. an
+        Enum repr like 'ModelType.FLOW') isn't an exact _RAW_TO_ENUM key, so the
+        BFS direct-hit path can't resolve it -- only the model.model.model_type
+        substring fallback can.
+        """
+        model = _StubModel(inner_model_type="ModelType.FLOW")
+        assert NRS()._get_pred_type(model) == PredictionType.FLOW
+
+    def test_inner_model_type_flux_string_is_flow(self):
+        model = _StubModel(inner_model_type="ModelType.FLUX")
+        assert NRS()._get_pred_type(model) == PredictionType.FLOW
+
     def test_unrecognized_model_defaults_to_eps(self):
         """Fully-unrecognized models fall back to EPS (documented default)."""
         model = _StubModel()
         assert NRS()._get_pred_type(model) == PredictionType.EPS
+
+
+class TestConvertToVSpaceIdentityBranches:
+    """FLOW and V are both pure identity conversions -- no ε<->v algebra runs,
+    so plain sentinel objects (no real tensor math) are enough to prove it.
+    """
+
+    def test_flow_convert_is_identity(self):
+        node = NRS()
+        cond, uncond = object(), object()
+        x_div, v_cond, v_uncond = node._convert_to_v_space(
+            object(), object(), object(), cond, uncond, PredictionType.FLOW
+        )
+        assert x_div is None
+        assert v_cond is cond
+        assert v_uncond is uncond
+
+    def test_flow_finalize_is_identity(self):
+        node = NRS()
+        x_final = object()
+        result = node._finalize_from_v_space(object(), None, x_final, object(), object(), PredictionType.FLOW)
+        assert result is x_final
+
+    def test_v_convert_is_identity(self):
+        """Regression guard: PR-3 must not disturb the existing V path."""
+        node = NRS()
+        cond, uncond = object(), object()
+        x_div, v_cond, v_uncond = node._convert_to_v_space(
+            object(), object(), object(), cond, uncond, PredictionType.V
+        )
+        assert x_div is None
+        assert v_cond is cond
+        assert v_uncond is uncond
+
+    def test_v_finalize_is_identity(self):
+        node = NRS()
+        x_final = object()
+        result = node._finalize_from_v_space(object(), None, x_final, object(), object(), PredictionType.V)
+        assert result is x_final
+
+    def test_eps_convert_still_performs_algebra(self):
+        """Regression guard: EPS must still run the ε->v conversion (x_div gets
+        computed, and cond/uncond are transformed rather than passed through).
+        """
+        node = NRS()
+        x_orig, sig_root, sigma = MagicMock(), MagicMock(), MagicMock()
+        cond, uncond = MagicMock(), MagicMock()
+        x_div, v_cond, v_uncond = node._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, PredictionType.EPS)
+        assert x_div is not None
+        assert v_cond is not cond
+        assert v_uncond is not uncond
+
+    def test_eps_finalize_still_performs_algebra(self):
+        node = NRS()
+        x_orig, x_div, x_final, sig_root, sigma = (
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+            MagicMock(),
+        )
+        result = node._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, PredictionType.EPS)
+        assert result is not x_final
