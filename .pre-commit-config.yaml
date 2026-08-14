@@ -36,8 +36,8 @@ repos:
   - repo: local
     hooks:
       - id: run-tests
-        name: Run pytest tests
-        entry: bash -c 'if command -v uv > /dev/null 2>&1; then uv run pytest tests/ || exit 1; else echo "WARNING - uv not found, skipping tests"; fi'
+        name: Run pytest with branch-coverage gate
+        entry: bash -c 'if ! command -v uv > /dev/null 2>&1; then echo "WARNING - uv not found, skipping tests and coverage gate"; exit 0; fi; if ! git rev-parse --verify --quiet origin/main > /dev/null 2>&1; then echo "ERROR - origin/main not resolvable locally; fetch origin main and retry"; exit 1; fi; uvx --with torch --with pytest-cov --with diff-cover pytest --cov=NRS --cov-branch --cov-report=xml --cov-report=term-missing tests/; status=$?; if [ $status -ne 0 ]; then rm -f coverage.xml .coverage; exit $status; fi; uvx --with diff-cover diff-cover coverage.xml --compare-branch=origin/main --branch-coverage --fail-under=90; cov_status=$?; rm -f coverage.xml .coverage; exit $cov_status'
         language: system
         stages: [pre-push]
         always_run: true

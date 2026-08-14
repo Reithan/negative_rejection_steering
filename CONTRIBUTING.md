@@ -54,6 +54,12 @@ Thank you for your interest in contributing! This document provides guidelines f
    pre-commit install --hook-type pre-push
    ```
 
+   The pre-push hook runs the full test suite with branch coverage and blocks
+   the push if changed code drops below 90% branch coverage (via pytest-cov +
+   diff-cover, mirroring CI). It needs `uv` installed — if `uv` isn't found,
+   the check is skipped with a warning — and `origin/main` fetched locally so
+   there's something to diff against.
+
 6. **Verify setup**:
 
    ```bash
