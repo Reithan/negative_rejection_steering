@@ -18,6 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - `__version__` string plus a patch-time log line announcing the version and detected prediction type; platform-agnostic GitHub issue template (#39).
 - CI: full test suite with a >90% branch-coverage gate on diffs (#38); version-increment check in the publish workflow (#33); git hooks and development infrastructure (#32).
+- Declared `requires-python` (>=3.10) so dependency locking is deterministic across environments.
 
 ### Changed / Upgrade notes
 
