@@ -9,6 +9,7 @@ dict and the enhanced-detection fallback in _get_pred_type), and cover the
 FLOW identity round-trip through _convert_to_v_space / _finalize_from_v_space.
 """
 
+import enum
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock
@@ -24,6 +25,14 @@ from NRS.nodes_NRS import _RAW_TO_ENUM, NRS, PredictionType
 def _make_model_sampling(class_name):
     """Build an instance whose type name matches class_name, for class-name fingerprinting."""
     return type(class_name, (object,), {})()
+
+
+class _ModelType(enum.Enum):
+    """Mirrors ComfyUI's real model_type.ModelType Enum, as exposed by MiniMax H3's
+    BaseModel.model_type -- a genuine Enum member, not a raw string.
+    """
+
+    FLOW = enum.auto()
 
 
 class _StubModel:
@@ -90,6 +99,16 @@ class TestGetPredTypeDirectAttribute:
 
     def test_model_type_wan_is_flow(self):
         model = _StubModel(model_type="wan")
+        assert NRS()._get_pred_type(model) == PredictionType.FLOW
+
+    def test_h3_enum_model_type_resolves_to_flow(self):
+        """MiniMax H3 exposes model.model.model_type as a real Enum member
+        (ModelType.FLOW), not a raw string. _canon's `isinstance(p, Enum)`
+        branch reduces it to `p.name` ("FLOW" -> "flow") before the
+        _RAW_TO_ENUM dict lookup, so this pins that Enum path -- as taken by
+        H3's real model_type attribute -- resolves at the direct-hit site.
+        """
+        model = _StubModel(inner_model_type=_ModelType.FLOW)
         assert NRS()._get_pred_type(model) == PredictionType.FLOW
 
 
