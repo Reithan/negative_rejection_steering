@@ -5,8 +5,12 @@ PR-3 reclassified the flow-matching family (flux, chroma, flow, wan, const)
 from PredictionType.EPS onto a new PredictionType.FLOW, which is operated
 natively (identity conversion, no VP ε<->v algebra). These tests pin that
 post-reclassification behavior at both detection sites (the _RAW_TO_ENUM
-dict and the enhanced-detection fallback in _get_pred_type), and cover the
-FLOW identity round-trip through _convert_to_v_space / _finalize_from_v_space.
+dict and the enhanced-detection fallback in _get_pred_type).
+
+FLOW is the sole native path; every VP parameterization (EPS, V, X0, and the
+UNKNOWN fallback) shares one ε/v/x0 -> v-space conversion through
+_convert_to_v_space / _finalize_from_v_space. These tests cover the FLOW
+identity round-trip and confirm the VP branches actually transform their inputs.
 """
 
 import enum
@@ -153,64 +157,49 @@ class TestGetPredTypeEnhancedDetectionFallback:
         assert NRS()._get_pred_type(model) == PredictionType.EPS
 
 
-class TestConvertToVSpaceIdentityBranches:
-    """FLOW and V are both pure identity conversions -- no ε<->v algebra runs,
-    so plain sentinel objects (no real tensor math) are enough to prove it.
+class TestConvertToVSpaceBranches:
+    """FLOW is the only native (identity) parameterization; every VP type
+    (EPS, V, X0, and the UNKNOWN fallback) now runs the shared ε/v/x0 -> v-space
+    algebra. FLOW identity needs no tensor math, so sentinel objects prove it;
+    the VP branches use MagicMock to confirm the algebra actually transforms.
     """
 
     def test_flow_convert_is_identity(self):
         node = NRS()
         cond, uncond = object(), object()
-        x_div, v_cond, v_uncond = node._convert_to_v_space(
-            object(), object(), object(), cond, uncond, PredictionType.FLOW
-        )
-        assert x_div is None
+        v_cond, v_uncond = node._convert_to_v_space(object(), object(), object(), cond, uncond, PredictionType.FLOW)
         assert v_cond is cond
         assert v_uncond is uncond
 
     def test_flow_finalize_is_identity(self):
         node = NRS()
         x_final = object()
-        result = node._finalize_from_v_space(object(), None, x_final, object(), object(), PredictionType.FLOW)
+        result = node._finalize_from_v_space(object(), x_final, object(), object(), PredictionType.FLOW)
         assert result is x_final
 
-    def test_v_convert_is_identity(self):
-        """Regression guard: PR-3 must not disturb the existing V path."""
-        node = NRS()
-        cond, uncond = object(), object()
-        x_div, v_cond, v_uncond = node._convert_to_v_space(
-            object(), object(), object(), cond, uncond, PredictionType.V
-        )
-        assert x_div is None
-        assert v_cond is cond
-        assert v_uncond is uncond
-
-    def test_v_finalize_is_identity(self):
-        node = NRS()
-        x_final = object()
-        result = node._finalize_from_v_space(object(), None, x_final, object(), object(), PredictionType.V)
-        assert result is x_final
-
-    def test_eps_convert_still_performs_algebra(self):
-        """Regression guard: EPS must still run the ε->v conversion (x_div gets
-        computed, and cond/uncond are transformed rather than passed through).
-        """
+    @pytest.mark.parametrize("pred_type", [PredictionType.EPS, PredictionType.V, PredictionType.X0])
+    def test_vp_convert_performs_algebra(self, pred_type):
+        """EPS/V/X0 all run the ε->v conversion (cond/uncond are transformed,
+        not passed through)."""
         node = NRS()
         x_orig, sig_root, sigma = MagicMock(), MagicMock(), MagicMock()
         cond, uncond = MagicMock(), MagicMock()
-        x_div, v_cond, v_uncond = node._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, PredictionType.EPS)
-        assert x_div is not None
+        v_cond, v_uncond = node._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, pred_type)
         assert v_cond is not cond
         assert v_uncond is not uncond
 
-    def test_eps_finalize_still_performs_algebra(self):
+    @pytest.mark.parametrize("pred_type", [PredictionType.EPS, PredictionType.V, PredictionType.X0])
+    def test_vp_finalize_performs_algebra(self, pred_type):
         node = NRS()
-        x_orig, x_div, x_final, sig_root, sigma = (
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-            MagicMock(),
-        )
-        result = node._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, PredictionType.EPS)
+        x_orig, x_final, sig_root, sigma = MagicMock(), MagicMock(), MagicMock(), MagicMock()
+        result = node._finalize_from_v_space(x_orig, x_final, sig_root, sigma, pred_type)
         assert result is not x_final
+
+    def test_unknown_convert_falls_back_to_vp(self):
+        """UNKNOWN (and any unhandled type) is treated as VP -> runs the algebra."""
+        node = NRS()
+        x_orig, sig_root, sigma = MagicMock(), MagicMock(), MagicMock()
+        cond, uncond = MagicMock(), MagicMock()
+        v_cond, v_uncond = node._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, PredictionType.UNKNOWN)
+        assert v_cond is not cond
+        assert v_uncond is not uncond

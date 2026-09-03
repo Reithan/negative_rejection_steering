@@ -151,9 +151,7 @@ def test_fallback_no_latent_shapes_matches_single_stream_shape():
     # Regression check: manually compute the single-stream result the same
     # way the pre-split code path did, and confirm equality.
     node = nrs_module.NRS()
-    expected = node._apply_guidance(
-        x_orig, cond, uncond, sigma, 2.0, 5.0, 0.75, nrs_module.PredictionType.EPS
-    )
+    expected = node._apply_guidance(x_orig, cond, uncond, sigma, 2.0, 5.0, 0.75, nrs_module.PredictionType.EPS)
     assert torch.allclose(result, expected)
 
 
@@ -168,9 +166,7 @@ def test_single_stream_latent_shapes_also_matches():
     result = _run_nrs(model, cond, uncond, x_orig, sigma)
 
     node = nrs_module.NRS()
-    expected = node._apply_guidance(
-        x_orig, cond, uncond, sigma, 2.0, 5.0, 0.75, nrs_module.PredictionType.EPS
-    )
+    expected = node._apply_guidance(x_orig, cond, uncond, sigma, 2.0, 5.0, 0.75, nrs_module.PredictionType.EPS)
     assert torch.allclose(result, expected)
 
 
