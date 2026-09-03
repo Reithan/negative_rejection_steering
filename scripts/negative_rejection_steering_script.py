@@ -100,7 +100,7 @@ class NRSScript(scripts.Script):
         )
 
         logging.debug(
-            f"NRS: Enabled: {self.enabled}, Squash: {self.skew}, Stretch: {self.stretch}, Squash: {self.squash}"
+            f"NRS: Enabled: {self.enabled}, Skew: {self.skew}, Stretch: {self.stretch}, Squash: {self.squash}"
         )
 
         return
