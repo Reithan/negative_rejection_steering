@@ -20,7 +20,7 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 <img align="right" src="Examples/NRS_graph.png" alt="Graph of NRS vs CFG" style="width: 40%; float: right;">
 
 ### NRS is Applied in Three Steps:
-0. ***V-Space**: Optional pre-NRS step* If the model is not using v-prediction, we transform the EPS `cond` and `uncond` into v-prediction space before continuing, then revert to eps-space before return.
+0. ***V-Space**: pre-NRS step* The sampler hands NRS its `cond`/`uncond` as `x - x0` for every variance-preserving parameterization (EPS, v-prediction, and x0-prediction alike), so NRS recovers the true velocity `v` from them and runs its geometry in v-prediction space, then inverts the transform before returning. This one v-space path handles EPS, v-pred, and x0 models identically. Flow-matching models (flux, chroma, wan, and other flow/CONST families) are operated natively — their prediction is already a pure scalar multiple of the velocity, so no v-space conversion is applied.
 1. **Skewing**: The conditioned output tensor is skewed away from the direction of the rejection of the unconditioned tensor on the conditioned tensor. This lengthens the tensor in a direction perpendicular to its direction without affecting the positive guidance. The tensor is displaced by the rejection multiplied by the Skew parameter.[^1]
 2. **Stretching**: The skewed tensor is stretched towards the direction of the original conditioned tensor based on its difference from the projection of uncond on cond. The stretch is multiplied by the Stretch parameter.[^1]
 3. **Squashing**: The skewed and stretched tensor is rescaled towards the original length of the conditioned tensor. 100% squashing outputs the original length of the conditioned tensor simply 'steered' towards the skewed & squashed version's direction.[^1]
@@ -63,7 +63,7 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 
 ## Beginner How-To
 1. Set Skew to 1/2 of your normal CFG Scale setting and Stretch to your full normal CFG Scale. Set Squash to 0.0.<br>
-*Alternatively, try starting with the default of 2/5/0.75, or at 1/1/1 to get a baseline.*
+*Alternatively, try starting with the default of 2/4/0.5, or at 1/1/1 to get a baseline.*
 2. Test some outputs. Results should be similar in quality to CFG.
 3. Adjust Skew to change the intensity of your outputs adherence to your positive and negative prompts. This primarily effects composition of the output.
 4. Adjust Stretch to intensify your positive prompt's aspects and colors where they differ from the negative prompt. This primarily effects color and texture.
