@@ -14,7 +14,7 @@ except Exception:
     _comfy_utils = None
 
 # Must be bumped together with the `version` field in pyproject.toml at release time.
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 
 
 def _unpack_latents(combined, latent_shapes):
@@ -88,7 +88,7 @@ class NRS:
                 "stretch": (
                     "FLOAT",
                     {
-                        "default": 5.00,
+                        "default": 4.00,
                         "min": -30.0,
                         "max": 30.0,
                         "step": 0.01,
@@ -98,7 +98,7 @@ class NRS:
                 "squash": (
                     "FLOAT",
                     {
-                        "default": 0.75,
+                        "default": 0.50,
                         "min": 0.0,
                         "max": 1.0,
                         "step": 0.01,
@@ -200,60 +200,60 @@ class NRS:
         )
         return PredictionType.EPS
 
+    def _is_vp(self, pred_type):
+        """VP (variance-preserving) parameterizations converted to v-space: EPS, V, X0.
+
+        UNKNOWN (and any unhandled type) falls back to VP/v-space. FLOW/CONST is the only
+        parameterization operated natively (see _convert_to_v_space).
+        """
+        if pred_type in (PredictionType.EPS, PredictionType.V, PredictionType.X0):
+            return True
+        if pred_type == PredictionType.FLOW:
+            return False
+        logging.warning(f"NRS: unknown prediction type {pred_type}, treating as VP (v-space)")
+        return True
+
     def _convert_to_v_space(self, x_orig, sig_root, sigma, cond, uncond, pred_type):
-        x_div = None
-        v_cond = cond
-        v_uncond = uncond
-        if pred_type in (PredictionType.V, PredictionType.FLOW):
-            logging.debug("NRS._convert_to_v_space: already in v/flow, no pre-scale needed")
-            pass  # already in v space / flow-matching operated natively
-        elif pred_type == PredictionType.EPS:
-            # ε → v conversion
-            logging.debug("NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps")
-            x_div = x_orig / (sigma**2 + 1)
-            factor = sigma / sig_root
+        """Convert the (x - x0) guidance vectors into v-prediction space before the NRS geometry.
 
-            v_cond = x_orig - (x_div - cond * factor)
-            v_uncond = x_orig - (x_div - uncond * factor)
-        elif pred_type == PredictionType.X0:
-            raise NotImplementedError("NRS._convert_to_v_space: x0-prediction not supported yet.")
-        else:
-            # Fallback: treat UNKNOWN as EPS and convert to V-space
-            logging.warning(f"NRS._convert_to_v_space: Unknown prediction type {pred_type}, treating as EPS")
-            logging.debug("NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps (fallback)")
-            x_div = x_orig / (sigma**2 + 1)
-            factor = sigma / sig_root
-            v_cond = x_orig - (x_div - cond * factor)
-            v_uncond = x_orig - (x_div - uncond * factor)
+        The sampler hook delivers cond/uncond as `x - x0` for every parameterization (the
+        model's raw output is converted to a denoised x0 before NRS sees it), so the true
+        velocity is recovered the same way regardless of EPS/V/X0:
+            v = (cond - A)/factor = (x/(sigma^2+1) - x0) * sig_root/sigma
+        with A = x*sigma^2/(sigma^2+1), factor = sigma/sqrt(sigma^2+1).
 
-        return x_div, v_cond, v_uncond
+        FLOW/CONST is operated natively: `x - x0 = sigma*out` is a pure scalar multiple of
+        the model's velocity (no additive offset), and the NRS geometry is scale-invariant,
+        so identity already runs on the native prediction. There is no VP v-space for
+        flow-matching (its sigma is a [0,1] flow time, not a VP karras sigma).
+        """
+        if not self._is_vp(pred_type):
+            logging.debug("NRS._convert_to_v_space: flow/const operated natively (identity)")
+            return cond, uncond
 
-    def _finalize_from_v_space(self, x_orig, x_div, x_final, sig_root, sigma, pred_type):
-        nrs_result = x_final
-        if pred_type in (PredictionType.V, PredictionType.FLOW):
-            # already in v space / flow-matching operated natively
-            logging.debug("NRS._finalize_from_v_space: already in v/flow, no post-scale needed")
-            pass
-        elif pred_type == PredictionType.EPS:
-            # v → ε conversion
-            logging.debug("NRS._finalize_from_v_space: generating cfg_result for eps")
-            nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
-        elif pred_type == PredictionType.X0:
-            raise NotImplementedError("NRS._finalize_from_v_space: x0-prediction not supported yet.")
-        else:
-            # Fallback: treat UNKNOWN as EPS and convert from V-space
-            logging.warning(f"NRS._finalize_from_v_space: Unknown prediction type {pred_type}, treating as EPS")
-            logging.debug("NRS._finalize_from_v_space: generating cfg_result for eps (fallback)")
-            nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
-        return nrs_result
+        logging.debug("NRS._convert_to_v_space: converting VP prediction to v-space")
+        factor = sigma / sig_root
+        a_off = x_orig - x_orig / (sigma**2 + 1)  # A = x*sigma^2/(sigma^2+1)
+        return (cond - a_off) / factor, (uncond - a_off) / factor
+
+    def _finalize_from_v_space(self, x_orig, x_final, sig_root, sigma, pred_type):
+        """Invert _convert_to_v_space so the hook returns `x - x0_final`. Round-trips exactly."""
+        if not self._is_vp(pred_type):
+            logging.debug("NRS._finalize_from_v_space: flow/const operated natively (identity)")
+            return x_final
+
+        factor = sigma / sig_root
+        a_off = x_orig - x_orig / (sigma**2 + 1)
+        return a_off + x_final * factor
 
     def _apply_guidance(self, x_orig, cond, uncond, sigma, skew, stretch, squash, pred_type):
         """Run the NRS geometry pipeline on a single (already-unpacked, channels-first) stream."""
         sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
         sig_root = (sigma**2 + 1).sqrt()
 
-        # V and FLOW models are operated natively (identity); EPS models are converted to v-space.
-        x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, pred_type)
+        # Convert (x - x0) guidance into v-space for all VP parameterizations (EPS/V/X0);
+        # FLOW/CONST runs natively.
+        nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, pred_type)
 
         def _dot(a, b):
             return (a * b).sum(dim=1, keepdim=True)  # [B,C,W,H] => [B,1,W,H]
@@ -281,7 +281,7 @@ class NRS:
         squash_scale = (1 - squash) + (squash * (cond_len / nrs_len))
         x_final = skewed * squash_scale
 
-        return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, pred_type)
+        return self._finalize_from_v_space(x_orig, x_final, sig_root, sigma, pred_type)
 
     def patch(self, model, skew, stretch, squash):
         pred_type = self._get_pred_type(model)
@@ -320,7 +320,14 @@ class NRS:
 
             results = [
                 self._apply_guidance(
-                    x_streams[i], cond_streams[i], uncond_streams[i], sigma, skew, stretch, squash, pred_type
+                    x_streams[i],
+                    cond_streams[i],
+                    uncond_streams[i],
+                    sigma,
+                    skew,
+                    stretch,
+                    squash,
+                    pred_type,
                 )
                 for i in range(len(cond_streams))
             ]

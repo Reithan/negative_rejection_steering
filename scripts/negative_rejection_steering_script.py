@@ -15,8 +15,8 @@ class NRSScript(scripts.Script):
         super().__init__()
         self.enabled = False
         self.skew = 2.00
-        self.stretch = 5.00
-        self.squash = 0.75
+        self.stretch = 4.00
+        self.squash = 0.50
 
     sorting_priority = 5
 
