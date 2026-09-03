@@ -247,13 +247,20 @@ class NRS:
             nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
         return nrs_result
 
-    def _apply_guidance(self, x_orig, cond, uncond, sigma, skew, stretch, squash, pred_type):
+    def _apply_guidance(self, x_orig, cond, uncond, sigma, skew, stretch, squash, pred_type, eps_identity=False):
         """Run the NRS geometry pipeline on a single (already-unpacked, channels-first) stream."""
         sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
         sig_root = (sigma**2 + 1).sqrt()
 
+        # TEST SWITCH (temporary, see .claude/plans/nrs-eps-branch-hook-space.md):
+        # When eps_identity is set, route EPS through the V/FLOW identity path
+        # (x_div=None, no pre/post affine transform) so the offset A can be A/B tested.
+        effective_pred = pred_type
+        if eps_identity and pred_type == PredictionType.EPS:
+            effective_pred = PredictionType.FLOW
+
         # V and FLOW models are operated natively (identity); EPS models are converted to v-space.
-        x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, pred_type)
+        x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, effective_pred)
 
         def _dot(a, b):
             return (a * b).sum(dim=1, keepdim=True)  # [B,C,W,H] => [B,1,W,H]
@@ -281,11 +288,13 @@ class NRS:
         squash_scale = (1 - squash) + (squash * (cond_len / nrs_len))
         x_final = skewed * squash_scale
 
-        return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, pred_type)
+        return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, effective_pred)
 
-    def patch(self, model, skew, stretch, squash):
+    def patch(self, model, skew, stretch, squash, eps_identity=False):
         pred_type = self._get_pred_type(model)
         logging.info(f"NRS v{__version__}: prediction type detected -> {pred_type.name}")
+        if eps_identity and pred_type == PredictionType.EPS:
+            logging.info("NRS: TEST SWITCH eps_identity=True -> routing EPS through V/FLOW identity path")
         warned = {"done": False}
 
         def nrs(args):
@@ -320,7 +329,15 @@ class NRS:
 
             results = [
                 self._apply_guidance(
-                    x_streams[i], cond_streams[i], uncond_streams[i], sigma, skew, stretch, squash, pred_type
+                    x_streams[i],
+                    cond_streams[i],
+                    uncond_streams[i],
+                    sigma,
+                    skew,
+                    stretch,
+                    squash,
+                    pred_type,
+                    eps_identity,
                 )
                 for i in range(len(cond_streams))
             ]
