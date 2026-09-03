@@ -216,9 +216,9 @@ class NRS:
     def _convert_to_v_space(self, x_orig, sig_root, sigma, cond, uncond, pred_type):
         """Convert the (x - x0) guidance vectors into v-prediction space before the NRS geometry.
 
-        The sampler hook delivers cond/uncond as `x - x0` for every parameterization (see
-        .claude/plans/nrs-eps-branch-hook-space.md), so the true velocity is recovered the
-        same way regardless of EPS/V/X0:
+        The sampler hook delivers cond/uncond as `x - x0` for every parameterization (the
+        model's raw output is converted to a denoised x0 before NRS sees it), so the true
+        velocity is recovered the same way regardless of EPS/V/X0:
             v = (cond - A)/factor = (x/(sigma^2+1) - x0) * sig_root/sigma
         with A = x*sigma^2/(sigma^2+1), factor = sigma/sqrt(sigma^2+1).
 
@@ -252,7 +252,7 @@ class NRS:
         sig_root = (sigma**2 + 1).sqrt()
 
         # Convert (x - x0) guidance into v-space for all VP parameterizations (EPS/V/X0);
-        # FLOW/CONST runs natively. See .claude/plans/nrs-eps-branch-hook-space.md.
+        # FLOW/CONST runs natively.
         nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, pred_type)
 
         def _dot(a, b):
