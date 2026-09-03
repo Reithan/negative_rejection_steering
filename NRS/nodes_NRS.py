@@ -200,67 +200,78 @@ class NRS:
         )
         return PredictionType.EPS
 
-    def _convert_to_v_space(self, x_orig, sig_root, sigma, cond, uncond, pred_type):
-        x_div = None
-        v_cond = cond
-        v_uncond = uncond
+    def _is_eps_like(self, pred_type):
+        """EPS and UNKNOWN (fallback-to-EPS) share the same conversion handling."""
+        if pred_type == PredictionType.EPS:
+            return True
+        if pred_type not in (PredictionType.V, PredictionType.FLOW, PredictionType.X0):
+            logging.warning(f"NRS: Unknown prediction type {pred_type}, treating as EPS")
+            return True
+        return False
+
+    def _convert_to_v_space(self, x_orig, sig_root, sigma, cond, uncond, pred_type, eps_mode="current"):
+        """Pre-transform the (x - x0) guidance vectors before the (scale-invariant) NRS geometry.
+
+        The hook delivers cond/uncond as `x - x0` for every parameterization (see
+        .claude/plans/nrs-eps-branch-hook-space.md). Only the common OFFSET fed to the
+        geometry matters; scale washes out. eps_mode selects that offset for EPS:
+          - "current":  v = A + cond*factor        (offset +A/factor; historical behavior)
+          - "identity": v = cond                    (offset 0; unifies EPS with V/FLOW)
+          - "true_v":   v = (cond - A)/factor       (offset -A; mathematically-correct e->v)
+        with A = x*sigma^2/(sigma^2+1), factor = sigma/sqrt(sigma^2+1).
+        """
         if pred_type in (PredictionType.V, PredictionType.FLOW):
             logging.debug("NRS._convert_to_v_space: already in v/flow, no pre-scale needed")
-            pass  # already in v space / flow-matching operated natively
-        elif pred_type == PredictionType.EPS:
-            # ε → v conversion
-            logging.debug("NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps")
-            x_div = x_orig / (sigma**2 + 1)
-            factor = sigma / sig_root
-
-            v_cond = x_orig - (x_div - cond * factor)
-            v_uncond = x_orig - (x_div - uncond * factor)
-        elif pred_type == PredictionType.X0:
+            return None, cond, uncond
+        if pred_type == PredictionType.X0:
             raise NotImplementedError("NRS._convert_to_v_space: x0-prediction not supported yet.")
-        else:
-            # Fallback: treat UNKNOWN as EPS and convert to V-space
-            logging.warning(f"NRS._convert_to_v_space: Unknown prediction type {pred_type}, treating as EPS")
-            logging.debug("NRS._convert_to_v_space: generating x_div, v_cond, and v_uncond for eps (fallback)")
-            x_div = x_orig / (sigma**2 + 1)
-            factor = sigma / sig_root
-            v_cond = x_orig - (x_div - cond * factor)
-            v_uncond = x_orig - (x_div - uncond * factor)
 
-        return x_div, v_cond, v_uncond
+        # EPS (and UNKNOWN fallback)
+        self._is_eps_like(pred_type)
+        if eps_mode == "identity":
+            logging.debug("NRS._convert_to_v_space: eps identity path, no pre-transform")
+            return None, cond, uncond
 
-    def _finalize_from_v_space(self, x_orig, x_div, x_final, sig_root, sigma, pred_type):
-        nrs_result = x_final
+        factor = sigma / sig_root
+        if eps_mode == "true_v":
+            logging.debug("NRS._convert_to_v_space: eps true_v conversion")
+            a_off = x_orig - x_orig / (sigma**2 + 1)  # A = x*sigma^2/(sigma^2+1)
+            return None, (cond - a_off) / factor, (uncond - a_off) / factor
+
+        logging.debug("NRS._convert_to_v_space: eps current v-space affine")
+        x_div = x_orig / (sigma**2 + 1)
+        return x_div, x_orig - (x_div - cond * factor), x_orig - (x_div - uncond * factor)
+
+    def _finalize_from_v_space(self, x_orig, x_div, x_final, sig_root, sigma, pred_type, eps_mode="current"):
+        """Invert the _convert_to_v_space pre-transform. Each mode round-trips exactly."""
         if pred_type in (PredictionType.V, PredictionType.FLOW):
-            # already in v space / flow-matching operated natively
             logging.debug("NRS._finalize_from_v_space: already in v/flow, no post-scale needed")
-            pass
-        elif pred_type == PredictionType.EPS:
-            # v → ε conversion
-            logging.debug("NRS._finalize_from_v_space: generating cfg_result for eps")
-            nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
-        elif pred_type == PredictionType.X0:
+            return x_final
+        if pred_type == PredictionType.X0:
             raise NotImplementedError("NRS._finalize_from_v_space: x0-prediction not supported yet.")
-        else:
-            # Fallback: treat UNKNOWN as EPS and convert from V-space
-            logging.warning(f"NRS._finalize_from_v_space: Unknown prediction type {pred_type}, treating as EPS")
-            logging.debug("NRS._finalize_from_v_space: generating cfg_result for eps (fallback)")
-            nrs_result = (x_div - (x_orig - x_final)) * (sig_root / sigma)
-        return nrs_result
 
-    def _apply_guidance(self, x_orig, cond, uncond, sigma, skew, stretch, squash, pred_type, eps_identity=False):
+        # EPS (and UNKNOWN fallback)
+        self._is_eps_like(pred_type)
+        if eps_mode == "identity":
+            return x_final
+
+        factor = sigma / sig_root
+        if eps_mode == "true_v":
+            a_off = x_orig - x_orig / (sigma**2 + 1)
+            return a_off + x_final * factor
+
+        return (x_div - (x_orig - x_final)) * (sig_root / sigma)
+
+    def _apply_guidance(self, x_orig, cond, uncond, sigma, skew, stretch, squash, pred_type, eps_mode="current"):
         """Run the NRS geometry pipeline on a single (already-unpacked, channels-first) stream."""
         sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
         sig_root = (sigma**2 + 1).sqrt()
 
-        # TEST SWITCH (temporary, see .claude/plans/nrs-eps-branch-hook-space.md):
-        # When eps_identity is set, route EPS through the V/FLOW identity path
-        # (x_div=None, no pre/post affine transform) so the offset A can be A/B tested.
-        effective_pred = pred_type
-        if eps_identity and pred_type == PredictionType.EPS:
-            effective_pred = PredictionType.FLOW
-
-        # V and FLOW models are operated natively (identity); EPS models are converted to v-space.
-        x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(x_orig, sig_root, sigma, cond, uncond, effective_pred)
+        # eps_mode selects the EPS pre/post transform (TEST, see
+        # .claude/plans/nrs-eps-branch-hook-space.md); no effect on V/FLOW/X0.
+        x_div, nrs_cond, nrs_uncond = self._convert_to_v_space(
+            x_orig, sig_root, sigma, cond, uncond, pred_type, eps_mode
+        )
 
         def _dot(a, b):
             return (a * b).sum(dim=1, keepdim=True)  # [B,C,W,H] => [B,1,W,H]
@@ -288,13 +299,13 @@ class NRS:
         squash_scale = (1 - squash) + (squash * (cond_len / nrs_len))
         x_final = skewed * squash_scale
 
-        return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, effective_pred)
+        return self._finalize_from_v_space(x_orig, x_div, x_final, sig_root, sigma, pred_type, eps_mode)
 
-    def patch(self, model, skew, stretch, squash, eps_identity=False):
+    def patch(self, model, skew, stretch, squash, eps_mode="current"):
         pred_type = self._get_pred_type(model)
         logging.info(f"NRS v{__version__}: prediction type detected -> {pred_type.name}")
-        if eps_identity and pred_type == PredictionType.EPS:
-            logging.info("NRS: TEST SWITCH eps_identity=True -> routing EPS through V/FLOW identity path")
+        if eps_mode != "current" and pred_type == PredictionType.EPS:
+            logging.info(f"NRS: TEST SWITCH eps_mode='{eps_mode}' -> EPS pre/post transform overridden")
         warned = {"done": False}
 
         def nrs(args):
@@ -337,7 +348,7 @@ class NRS:
                     stretch,
                     squash,
                     pred_type,
-                    eps_identity,
+                    eps_mode,
                 )
                 for i in range(len(cond_streams))
             ]

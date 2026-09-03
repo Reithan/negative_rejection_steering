@@ -17,7 +17,8 @@ class NRSScript(scripts.Script):
         self.skew = 2.00
         self.stretch = 5.00
         self.squash = 0.75
-        self.eps_identity = False  # TEST SWITCH: route EPS through V/FLOW identity path
+        # TEST SWITCH: EPS pre/post transform mode ("current" | "identity" | "true_v")
+        self.eps_mode = "current"
 
     sorting_priority = 5
 
@@ -55,22 +56,24 @@ class NRSScript(scripts.Script):
                 step=0.01,
                 value=self.squash,
             )
-            eps_identity = gr.Checkbox(
-                label="EPS identity path (TEST)",
-                info="TEST: skip the EPS->v affine transform, run EPS on the V/FLOW identity path. No effect on v-pred/flow models.",
-                value=self.eps_identity,
+            eps_mode = gr.Radio(
+                label="EPS transform mode (TEST)",
+                info="TEST, EPS models only (no effect on v-pred/flow): 'current' = shipped v-space affine; "
+                "'identity' = run EPS on the V/FLOW identity path; 'true_v' = mathematically-correct e->v.",
+                choices=["current", "identity", "true_v"],
+                value=self.eps_mode,
             )
 
         enabled.change(lambda x: self.update_enabled(x), inputs=[enabled])
 
-        return (enabled, skew, stretch, squash, eps_identity)
+        return (enabled, skew, stretch, squash, eps_mode)
 
     def update_enabled(self, value):
         self.enabled = value
 
     def process_before_every_sampling(self, p, *args, **kwargs):
         if len(args) >= 5:
-            self.enabled, self.skew, self.stretch, self.squash, self.eps_identity = args[:5]
+            self.enabled, self.skew, self.stretch, self.squash, self.eps_mode = args[:5]
         elif len(args) >= 4:
             self.enabled, self.skew, self.stretch, self.squash = args[:4]
         else:
@@ -86,8 +89,8 @@ class NRSScript(scripts.Script):
             self.stretch = xyz["stretch"]
         if "squash" in xyz:
             self.squash = xyz["squash"]
-        if "eps_identity" in xyz:
-            self.eps_identity = xyz["eps_identity"] == "True"
+        if "eps_mode" in xyz:
+            self.eps_mode = xyz["eps_mode"]
 
         # Always start with a fresh clone of the original unet
         unet = p.sd_model.forge_objects.unet.clone()
@@ -97,7 +100,7 @@ class NRSScript(scripts.Script):
             p.sd_model.forge_objects.unet = unet
             return
 
-        unet = NRS().patch(unet, self.skew, self.stretch, self.squash, self.eps_identity)[0]
+        unet = NRS().patch(unet, self.skew, self.stretch, self.squash, self.eps_mode)[0]
 
         p.sd_model.forge_objects.unet = unet
         p.extra_generation_params.update(
@@ -106,13 +109,13 @@ class NRSScript(scripts.Script):
                 "NRS_skew": self.skew,
                 "NRS_stretch": self.stretch,
                 "NRS_squash": self.squash,
-                "NRS_eps_identity": self.eps_identity,
+                "NRS_eps_mode": self.eps_mode,
             }
         )
 
         logging.debug(
             f"NRS: Enabled: {self.enabled}, Skew: {self.skew}, Stretch: {self.stretch}, "
-            f"Squash: {self.squash}, EPS_identity: {self.eps_identity}"
+            f"Squash: {self.squash}, EPS_mode: {self.eps_mode}"
         )
 
         return
@@ -154,7 +157,10 @@ def make_axis_on_xyz_grid():
             partial(set_value, field="squash"),
         ),
         xyz_grid.AxisOption(
-            "(NRS) EPS Identity", str, partial(set_value, field="eps_identity"), choices=lambda: ["True", "False"]
+            "(NRS) EPS Mode",
+            str,
+            partial(set_value, field="eps_mode"),
+            choices=lambda: ["current", "identity", "true_v"],
         ),
     ]
 
