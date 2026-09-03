@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **X0 (sample) prediction support** (#44): x0-prediction models are now handled through the shared v-prediction-space path, alongside EPS and v-pred. This new capability is why the release is 1.1.0 rather than a patch.
+- **X0 (sample) prediction support** (#44): x0-prediction models are now handled through the shared v-prediction-space path, alongside EPS and v-pred.
 
 ### Fixed
 
@@ -18,7 +18,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - **Default parameters changed** 2/5/0.75 → **2/4/0.5** (Skew/Stretch/Squash) in both the ComfyUI node and the A1111-family (Forge/reForge/Forge Neo) script.
 - **v-prediction models now run the v-space conversion** instead of operating on the raw guidance. For typical config ranges the output change is expected to be minimal (verified on EPS; v-pred/x0 are math-validated but **not yet image-validated** — spot-check and retune if needed).
-- **Reproducibility note:** the same seed + config may produce a slightly different image than 1.0.0 because of the corrected v-space handling and the new defaults. This is a deliberate correctness change, not a regression.
+- **Reproducibility note:** the same seed + config may produce a slightly different image than 1.0.0 because of the corrected v-space handling and the new defaults.
 
 ## [1.0.0] - 2026-08-14
 
