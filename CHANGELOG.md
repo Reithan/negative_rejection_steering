@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - Unreleased
+
+### Added
+
+- **X0 (sample) prediction support** (#44): x0-prediction models are now handled through the shared v-prediction-space path, alongside EPS and v-pred. This new capability is why the release is 1.1.0 rather than a patch.
+
+### Fixed
+
+- **Correct v-space conversion for all variance-preserving parameterizations** (#44). The sampler hook delivers `cond`/`uncond` as `x - x0` for EPS, v-pred, and x0 alike, so NRS now recovers the true velocity `v = (cond - A)/factor` and runs its geometry in v-prediction space, then inverts exactly on return. This replaces the prior EPS-only affine, which operated on an incorrect input-space assumption. Flow-matching (FLOW/CONST) models remain operated natively — their prediction is already a pure scalar multiple of the velocity, so no conversion is applied.
+
+### Changed / Upgrade notes
+
+- **Default parameters changed** 2/5/0.75 → **2/4/0.5** (Skew/Stretch/Squash) in both the ComfyUI node and the A1111-family (Forge/reForge/Forge Neo) script.
+- **v-prediction models now run the v-space conversion** instead of operating on the raw guidance. For typical config ranges the output change is expected to be minimal (verified on EPS; v-pred/x0 are math-validated but **not yet image-validated** — spot-check and retune if needed).
+- **Reproducibility note:** the same seed + config may produce a slightly different image than 1.0.0 because of the corrected v-space handling and the new defaults. This is a deliberate correctness change, not a regression.
+
 ## [1.0.0] - 2026-08-14
 
 ### Fixed
