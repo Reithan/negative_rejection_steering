@@ -133,8 +133,10 @@ These caveats are video-specific — 2D image generation is unaffected.
 
 ### Diagnostics
 NRS can log per-step geometry statistics so you can see how Skew, Stretch and Squash act on a given model. It is off by default and does not change the output.
-- Set the environment variable `NRS_GEOMETRY_LOG=1` before starting ComfyUI/Forge. One JSON line per step per stream is logged (logger `NRS.geometry`, prefix `NRS_GEOMETRY `, INFO level).
-- Set it to a file path (contains `/` or ends in `.jsonl`) to append the lines to that file instead.
+- Set the environment variable `NRS_GEOMETRY_LOG` before starting ComfyUI/Forge.
+- **Recommended:** set it to a file path (contains `/` or ends in `.jsonl`), e.g. `NRS_GEOMETRY_LOG=nrs_geometry.jsonl`. One JSON line per step per stream is appended to that file. Non-finite values are written as `null`.
+- Set it to `1` to send the lines to the console instead (logger `NRS.geometry`, prefix `NRS_GEOMETRY `, INFO level). Some UIs (e.g. A1111/Forge) hide INFO messages by default, so use the file form there.
+- If the statistics cannot be computed (e.g. out of memory or an unsupported operation on your backend), NRS warns once and keeps generating.
 - `parallel_share`: fraction of the cond-uncond difference lying along cond (the part Stretch works on); the rest is the part Skew works on.
 - `frac_backward`: fraction of pixels where Stretch pushes backward (uncond projects past cond).
 - `squash_scale_mean/min/p05`: the Squash length scale applied to the result (1.0 means untouched).

@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
-- **Opt-in per-step geometry diagnostics.** Set `NRS_GEOMETRY_LOG=1` to log one JSON line per sampling step per stream (logger `NRS.geometry`, prefix `NRS_GEOMETRY `), or set it to a file path (contains a path separator or ends in `.jsonl`) to append JSONL there. Fields: `version`, `sigma`, `pred_type`, `stream`, `skew`, `stretch`, `squash`, `parallel_share`, `frac_backward`, `squash_scale_mean/min/p05`, `skew_push_median`, `stretch_push_median`, plus an `alt` object (reference points `lam_1` and `lam_old_eps`) for VP prediction types. Off by default; when off there is no extra tensor work, and the returned tensor is bit-identical either way.
+- **Opt-in per-step geometry diagnostics.** Set `NRS_GEOMETRY_LOG=1` to log one JSON line per sampling step per stream (logger `NRS.geometry`, prefix `NRS_GEOMETRY `), or set it to a file path (contains a path separator or ends in `.jsonl`) to append JSONL there. Fields: `version`, `sigma`, `pred_type`, `stream`, `skew`, `stretch`, `squash`, `parallel_share`, `frac_backward`, `squash_scale_mean/min/p05`, `skew_push_median`, `stretch_push_median`, plus an `alt` object (reference points `lam_1` and `lam_old_eps`) for VP prediction types. Non-finite values are written as `null`, so every line is strict JSON. If the statistics fail (for example, out of memory or an op the backend does not support), NRS warns once and keeps generating. Off by default; when off there is no extra tensor work, and the returned tensor is bit-identical either way.
 
 ### Changed
 

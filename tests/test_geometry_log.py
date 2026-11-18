@@ -250,3 +250,30 @@ def test_single_stream_via_patch_uses_stream_zero(monkeypatch, caplog):
         patched.fn(args)
     recs = [json.loads(r.getMessage().split(" ", 1)[1]) for r in _records(caplog)]
     assert [r["stream"] for r in recs] == [0]
+
+
+def test_stats_failure_warns_once_and_output_unchanged(monkeypatch, caplog):
+    monkeypatch.delenv(ENV, raising=False)
+    expected = _guide("EPS")
+    monkeypatch.setenv(ENV, "1")
+    monkeypatch.setattr(nrs_module, "_geometry_failed_warned", False)
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("kthvalue not supported")
+
+    monkeypatch.setattr(nrs_module, "_geometry_stats", boom)
+    with caplog.at_level(logging.WARNING):
+        first = _guide("EPS")
+        second = _guide("EPS")
+    assert torch.equal(first, expected)
+    assert torch.equal(second, expected)
+    warns = [r for r in caplog.records if "stats failed" in r.getMessage()]
+    assert len(warns) == 1
+    assert _records(caplog) == []
+
+
+def test_non_finite_stats_written_as_null(monkeypatch, tmp_path):
+    target = tmp_path / "geo.jsonl"
+    nrs_module._emit_geometry({"a": float("nan"), "alt": {"b": float("inf"), "c": 1.5}, "d": "x"}, str(target))
+    rec = json.loads(target.read_text(), parse_constant=lambda c: pytest.fail(f"non-strict JSON {c}"))
+    assert rec == {"a": None, "alt": {"b": None, "c": 1.5}, "d": "x"}

@@ -102,8 +102,20 @@ def _geometry_stats(cond_v, uncond_v, skew, stretch, squash):
     )
 
 
+_geometry_failed_warned = False
+
+
+def _json_safe(v):
+    """Map non-finite floats to None (recursively) so every line is strict JSON."""
+    if isinstance(v, dict):
+        return {k: _json_safe(x) for k, x in v.items()}
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    return v
+
+
 def _emit_geometry(record, target):
-    line = json.dumps(record)
+    line = json.dumps(_json_safe(record), allow_nan=False)
     if target:
         try:
             with open(target, "a", encoding="utf-8") as fh:
@@ -353,9 +365,19 @@ class NRS:
 
         target = _geometry_target()
         if target is not None:
-            self._log_geometry(
-                target, (x_orig, cond, uncond, nrs_cond, nrs_uncond, sigma), (skew, stretch, squash), pred_type, stream
-            )
+            try:
+                self._log_geometry(
+                    target,
+                    (x_orig, cond, uncond, nrs_cond, nrs_uncond, sigma),
+                    (skew, stretch, squash),
+                    pred_type,
+                    stream,
+                )
+            except Exception as e:  # diagnostics must never abort a generation
+                global _geometry_failed_warned
+                if not _geometry_failed_warned:
+                    _geometry_failed_warned = True
+                    logging.warning(f"NRS geometry log: stats failed, skipping ({type(e).__name__}: {e})")
 
         return self._finalize_from_v_space(x_orig, x_final, sig_root, sigma, pred_type)
 
