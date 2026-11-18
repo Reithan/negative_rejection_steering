@@ -46,6 +46,9 @@ def _pack_latents(streams):
     return torch.cat(flat, dim=-1)
 
 
+# EXPERIMENTAL (do-not-merge): NRS_SQUASH_REF=raw makes squash restore the length of the raw hook
+# vector (x - x0_c) instead of the v-space cond length. Skew/stretch still run in v-space.
+_SQUASH_REF_ENV = "NRS_SQUASH_REF"
 _GEOMETRY_ENV = "NRS_GEOMETRY_LOG"
 _GEOMETRY_KEYS = (
     "parallel_share",
@@ -378,6 +381,13 @@ class NRS:
                 if not _geometry_failed_warned:
                     _geometry_failed_warned = True
                     logging.warning(f"NRS geometry log: stats failed, skipping ({type(e).__name__}: {e})")
+
+        if os.environ.get(_SQUASH_REF_ENV, "") == "raw" and self._is_vp(pred_type):
+            # Finalize without squash, then squash in x - x0 space (both lengths measured there).
+            skewed_h = self._finalize_from_v_space(x_orig, skewed, sig_root, sigma, pred_type)
+            raw_len = cond.norm(dim=1, keepdim=True)
+            h_len = skewed_h.norm(dim=1, keepdim=True) + eps
+            return skewed_h * ((1 - squash) + (squash * (raw_len / h_len)))
 
         return self._finalize_from_v_space(x_orig, x_final, sig_root, sigma, pred_type)
 
