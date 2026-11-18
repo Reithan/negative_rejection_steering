@@ -66,7 +66,7 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 
 ## Beginner How-To
 1. Set Skew and Stretch to your normal CFG Scale minus 1, and set Squash to 0.0. This reproduces CFG exactly (for example, CFG 7 becomes 6/6/0), so you start from a baseline you can check.<br>
-*Alternatively, start from the default of 2/4/0.5, which begins close to CFG 3.*
+*Alternatively, start from the default of 2/4/0.5, which is roughly comparable to CFG 3 (not an exact match).*
 2. Test some outputs. At the CFG-minus-1 setting they should match your normal CFG outputs. From there, change one knob at a time.
 3. Adjust Skew to change the intensity of your outputs adherence to your positive and negative prompts. This primarily effects composition of the output.
 4. Adjust Stretch to intensify your positive prompt's aspects and colors where they differ from the negative prompt. This primarily effects color and texture.
