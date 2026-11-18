@@ -21,9 +21,9 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 
 ### NRS is Applied in Three Steps:
 0. ***V-Space**: pre-NRS step* The sampler hands NRS its `cond`/`uncond` as `x - x0` for every variance-preserving parameterization (EPS, v-prediction, and x0-prediction alike), so NRS recovers the true velocity `v` from them and runs its geometry in v-prediction space, then inverts the transform before returning. This one v-space path handles EPS, v-pred, and x0 models identically. Flow-matching models (flux, chroma, wan, and other flow/CONST families) are operated natively — their prediction is already a pure scalar multiple of the velocity, so no v-space conversion is applied.
-1. **Skewing**: The conditioned output tensor is skewed away from the direction of the rejection of the unconditioned tensor on the conditioned tensor. This lengthens the tensor in a direction perpendicular to its direction without affecting the positive guidance. The tensor is displaced by the rejection multiplied by the Skew parameter.[^1]
-2. **Stretching**: The skewed tensor is stretched towards the direction of the original conditioned tensor based on its difference from the projection of uncond on cond. The stretch is multiplied by the Stretch parameter.[^1]
-3. **Squashing**: The skewed and stretched tensor is rescaled towards the original length of the conditioned tensor. 100% squashing outputs the original length of the conditioned tensor simply 'steered' towards the skewed & squashed version's direction.[^1]
+1. **Stretching**: The conditioned tensor is stretched along its own direction, based on its difference from the projection of uncond on cond. The stretch is multiplied by the Stretch parameter.[^1]
+2. **Skewing**: The stretched tensor is skewed away from the direction of the rejection of the unconditioned tensor on the conditioned tensor. This lengthens the tensor in a direction perpendicular to its direction without affecting the positive guidance. The tensor is displaced by the rejection multiplied by the Skew parameter.[^1]
+3. **Squashing**: The stretched and skewed tensor is rescaled towards the original length of the conditioned tensor. 100% squashing outputs the original length of the conditioned tensor simply 'steered' towards the stretched & skewed version's direction.[^1]
 [^1]: All operations are done per feature across the step's batch, width, and height.
 
 [Interactive Graph on Math3D.org](https://www.math3d.org/aTJW4UZtCh)

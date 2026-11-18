@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
-## [1.1.0] - Unreleased
+## [1.1.0] - 2026-09-03
 
 ### Added
 
@@ -17,7 +17,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 ### Changed / Upgrade notes
 
 - **Default parameters changed** 2/5/0.75 → **2/4/0.5** (Skew/Stretch/Squash) in both the ComfyUI node and the A1111-family (Forge/reForge/Forge Neo) script.
-- **v-prediction models now run the v-space conversion** instead of operating on the raw guidance. For typical config ranges the output change is expected to be minimal (verified on EPS; v-pred/x0 are math-validated but **not yet image-validated** — spot-check and retune if needed).
+- **v-prediction models now run the v-space conversion** instead of operating on the raw guidance. The output change is expected to be small at balanced settings and larger at high skew with squash above 0 (verified on EPS at normal ranges; v-pred/x0 are math-validated but **not yet image-validated** — spot-check and retune if needed).
 - **Reproducibility note:** the same seed + config may produce a slightly different image than 1.0.0 because of the corrected v-space handling and the new defaults.
 
 ## [1.0.0] - 2026-08-14
