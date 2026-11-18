@@ -66,7 +66,7 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 
 ## Beginner How-To
 1. Set Skew and Stretch to your normal CFG Scale minus 1, and set Squash to 0.0. This reproduces CFG exactly (for example, CFG 7 becomes 6/6/0), so you start from a baseline you can check.<br>
-*Alternatively, start from the default of 2/4/0.5, which begins close to CFG 3.*
+*Alternatively, start from the default of 2/4/0.5, which is roughly comparable to CFG 3 (not an exact match).*
 2. Test some outputs. At the CFG-minus-1 setting they should match your normal CFG outputs. From there, change one knob at a time.
 3. Adjust Skew to change the intensity of your outputs adherence to your positive and negative prompts. This primarily effects composition of the output.
 4. Adjust Stretch to intensify your positive prompt's aspects and colors where they differ from the negative prompt. This primarily effects color and texture.
@@ -130,6 +130,19 @@ When using NRS with **video** models (e.g. MiniMax H3), two things need to be tu
 NRS adds a second inference pass per step, like CFG, so video generation time increases accordingly. Consider reserving NRS for final generations or prompts that need extra adherence.
 
 These caveats are video-specific — 2D image generation is unaffected.
+
+### Diagnostics
+NRS can log per-step geometry statistics so you can see how Skew, Stretch and Squash act on a given model. It is off by default and does not change the output.
+- Set the environment variable `NRS_GEOMETRY_LOG` before starting ComfyUI/Forge.
+- **Recommended:** set it to a file path (contains `/` or ends in `.jsonl`), e.g. `NRS_GEOMETRY_LOG=nrs_geometry.jsonl`. One JSON line per step per stream is appended to that file. Non-finite values are written as `null`.
+- Set it to `1` to send the lines to the console instead (logger `NRS.geometry`, prefix `NRS_GEOMETRY `, INFO level). Some UIs (e.g. A1111/Forge) hide INFO messages by default, so use the file form there.
+- If the statistics cannot be computed (e.g. out of memory or an unsupported operation on your backend), NRS warns once and keeps generating.
+- `parallel_share`: fraction of the cond-uncond difference lying along cond (the part Stretch works on); the rest is the part Skew works on.
+- `frac_backward`: fraction of pixels where Stretch pushes backward (uncond projects past cond).
+- `squash_scale_mean/min/p05`: the Squash length scale applied to the result (1.0 means untouched).
+- `skew_push_median`, `stretch_push_median`: typical size of each push relative to cond's length.
+- `alt` (EPS/V/X0 only): the same statistics under two other reference points, `lam_1` and `lam_old_eps`.
+- `stream` is the packed-latent stream index (0 for single-stream models); `sigma` is the first batch element.
 
 ## Submitted User Examples
 | User | CFG | NRS |

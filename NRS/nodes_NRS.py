@@ -2,8 +2,10 @@
 # only became checkable once NRS became a regular (non-namespace) package here.
 # Renaming it is out of scope (would break existing imports); pyproject.toml's
 # per-file-ignores already carve out N802/N804 for this same file.
+import json
 import logging
 import math
+import os
 from enum import Enum, auto
 
 import torch
@@ -14,7 +16,7 @@ except Exception:
     _comfy_utils = None
 
 # Must be bumped together with the `version` field in pyproject.toml at release time.
-__version__ = "1.1.0"
+__version__ = "1.1.1"
 
 
 def _unpack_latents(combined, latent_shapes):
@@ -42,6 +44,86 @@ def _pack_latents(streams):
     """
     flat = [s.reshape(s.shape[0], 1, -1) for s in streams]
     return torch.cat(flat, dim=-1)
+
+
+_GEOMETRY_ENV = "NRS_GEOMETRY_LOG"
+_GEOMETRY_KEYS = (
+    "parallel_share",
+    "frac_backward",
+    "squash_scale_mean",
+    "squash_scale_min",
+    "squash_scale_p05",
+    "skew_push_median",
+    "stretch_push_median",
+)
+
+
+def _geometry_target():
+    """Return None (disabled), "" (log via logging) or a file path, from NRS_GEOMETRY_LOG."""
+    val = os.environ.get(_GEOMETRY_ENV, "")
+    if not val or val == "0":
+        return None
+    if "/" in val or os.sep in val or val.endswith(".jsonl"):
+        return val
+    return ""
+
+
+def _geometry_stats(cond_v, uncond_v, skew, stretch, squash):
+    """Diagnostic geometry statistics as a float32 tensor of len(_GEOMETRY_KEYS) (stays on device).
+
+    Uses the same formulas as NRS._apply_guidance, on already-converted guidance vectors.
+    """
+    cond_v = cond_v.float()
+    uncond_v = uncond_v.float()
+    eps = torch.finfo(cond_v.dtype).eps
+    c_dot_c = (cond_v * cond_v).sum(dim=1, keepdim=True) + eps
+    u_dot_c = (uncond_v * cond_v).sum(dim=1, keepdim=True)
+    ratio = u_dot_c / c_dot_c
+    proj_diff = cond_v - ratio * cond_v
+    u_rej_c = uncond_v - ratio * cond_v
+    skewed = cond_v + stretch * proj_diff - skew * u_rej_c
+    cond_len = cond_v.norm(dim=1, keepdim=True)
+    scale = (1 - squash) + squash * (cond_len / (skewed.norm(dim=1, keepdim=True) + eps))
+    pd2 = (proj_diff * proj_diff).sum()
+    ur2 = (u_rej_c * u_rej_c).sum()
+    flat = scale.flatten()
+    k = max(1, math.ceil(0.05 * flat.numel()))
+    clen = cond_len + eps
+    return torch.stack(
+        [
+            pd2 / (pd2 + ur2 + eps),
+            (ratio > 1).float().mean(),
+            flat.mean(),
+            flat.min(),
+            flat.kthvalue(k).values,
+            (abs(skew) * u_rej_c.norm(dim=1, keepdim=True) / clen).flatten().median(),
+            (abs(stretch) * proj_diff.norm(dim=1, keepdim=True) / clen).flatten().median(),
+        ]
+    )
+
+
+_geometry_failed_warned = False
+
+
+def _json_safe(v):
+    """Map non-finite floats to None (recursively) so every line is strict JSON."""
+    if isinstance(v, dict):
+        return {k: _json_safe(x) for k, x in v.items()}
+    if isinstance(v, float) and not math.isfinite(v):
+        return None
+    return v
+
+
+def _emit_geometry(record, target):
+    line = json.dumps(_json_safe(record), allow_nan=False)
+    if target:
+        try:
+            with open(target, "a", encoding="utf-8") as fh:
+                fh.write(line + "\n")
+        except OSError as e:
+            logging.warning(f"NRS geometry log: cannot write {target}: {e}")
+    else:
+        logging.getLogger("NRS.geometry").info(f"NRS_GEOMETRY {line}")
 
 
 # fmt: off
@@ -246,7 +328,7 @@ class NRS:
         a_off = x_orig - x_orig / (sigma**2 + 1)
         return a_off + x_final * factor
 
-    def _apply_guidance(self, x_orig, cond, uncond, sigma, skew, stretch, squash, pred_type):
+    def _apply_guidance(self, x_orig, cond, uncond, sigma, skew, stretch, squash, pred_type, stream=0):
         """Run the NRS geometry pipeline on a single (already-unpacked, channels-first) stream."""
         sigma = sigma.view(sigma.shape[:1] + (1,) * (cond.ndim - 1))
         sig_root = (sigma**2 + 1).sqrt()
@@ -281,7 +363,60 @@ class NRS:
         squash_scale = (1 - squash) + (squash * (cond_len / nrs_len))
         x_final = skewed * squash_scale
 
+        target = _geometry_target()
+        if target is not None:
+            try:
+                self._log_geometry(
+                    target,
+                    (x_orig, cond, uncond, nrs_cond, nrs_uncond, sigma),
+                    (skew, stretch, squash),
+                    pred_type,
+                    stream,
+                )
+            except Exception as e:  # diagnostics must never abort a generation
+                global _geometry_failed_warned
+                if not _geometry_failed_warned:
+                    _geometry_failed_warned = True
+                    logging.warning(f"NRS geometry log: stats failed, skipping ({type(e).__name__}: {e})")
+
         return self._finalize_from_v_space(x_orig, x_final, sig_root, sigma, pred_type)
+
+    def _log_geometry(self, target, tensors, knobs, pred_type, stream):
+        """Emit one JSON line of geometry stats (opt-in via NRS_GEOMETRY_LOG). Never touches the output."""
+        x_orig, cond, uncond, nrs_cond, nrs_uncond, sigma = tensors
+        skew, stretch, squash = knobs
+        n = len(_GEOMETRY_KEYS)
+        with torch.no_grad():
+            parts = [_geometry_stats(nrs_cond, nrs_uncond, skew, stretch, squash)]
+            names = []
+            if self._is_vp(pred_type):
+                # Reference point p = lam*x: geometry vectors are p - x0 = (lam - 1)*x + (x - x0).
+                x = x_orig.float()
+                lams = (
+                    ("lam_1", torch.ones_like(sigma)),
+                    ("lam_old_eps", 1 + sigma / (sigma**2 + 1).sqrt()),
+                )
+                for name, lam in lams:
+                    off = (lam.float() - 1) * x
+                    parts.append(_geometry_stats(off + cond.float(), off + uncond.float(), skew, stretch, squash))
+                    names.append(name)
+            parts.append(sigma.flatten()[:1].float())
+            vals = torch.cat(parts).cpu().tolist()  # single device->host transfer
+        record = {
+            "version": __version__,
+            "sigma": vals[-1],
+            "pred_type": pred_type.name,
+            "stream": stream,
+            "skew": float(skew),
+            "stretch": float(stretch),
+            "squash": float(squash),
+            **dict(zip(_GEOMETRY_KEYS, vals[:n])),
+        }
+        if names:
+            record["alt"] = {
+                nm: dict(zip(_GEOMETRY_KEYS, vals[n * (i + 1) : n * (i + 2)])) for i, nm in enumerate(names)
+            }
+        _emit_geometry(record, target)
 
     def patch(self, model, skew, stretch, squash):
         pred_type = self._get_pred_type(model)
@@ -328,6 +463,7 @@ class NRS:
                     stretch,
                     squash,
                     pred_type,
+                    stream=i,
                 )
                 for i in range(len(cond_streams))
             ]
