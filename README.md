@@ -131,6 +131,17 @@ NRS adds a second inference pass per step, like CFG, so video generation time in
 
 These caveats are video-specific — 2D image generation is unaffected.
 
+### Diagnostics
+NRS can log per-step geometry statistics so you can see how Skew, Stretch and Squash act on a given model. It is off by default and does not change the output.
+- Set the environment variable `NRS_GEOMETRY_LOG=1` before starting ComfyUI/Forge. One JSON line per step per stream is logged (logger `NRS.geometry`, prefix `NRS_GEOMETRY `, INFO level).
+- Set it to a file path (contains `/` or ends in `.jsonl`) to append the lines to that file instead.
+- `parallel_share`: fraction of the cond-uncond difference lying along cond (the part Stretch works on); the rest is the part Skew works on.
+- `frac_backward`: fraction of pixels where Stretch pushes backward (uncond projects past cond).
+- `squash_scale_mean/min/p05`: the Squash length scale applied to the result (1.0 means untouched).
+- `skew_push_median`, `stretch_push_median`: typical size of each push relative to cond's length.
+- `alt` (EPS/V/X0 only): the same statistics under two other reference points, `lam_1` and `lam_old_eps`.
+- `stream` is the packed-latent stream index (0 for single-stream models); `sigma` is the first batch element.
+
 ## Submitted User Examples
 | User | CFG | NRS |
 | --- | --- | --- |
