@@ -42,7 +42,7 @@ In `_apply_guidance`, `proj_diff` is `-Δ∥`, `u_rej_c` is `Δ⊥`, and `x_fina
 ### Consequences
 
 1. At squash 0, `s = 1` and `p` only chooses the axis. With skew = stretch = w - 1, the result is exactly CFG at scale w. This holds for every prediction type and every version.
-2. With skew 0, squash removes its own fraction of the stretch push. The effective stretch is `stretch·(1 - squash)`. This holds at every sigma.
+2. With skew 0, squash removes its own fraction of the stretch push. The effective stretch is `stretch·(1 - squash)`, at every sigma, on each pixel where the push does not overshoot, that is where `|p - x0_c| > stretch·(Δ·e)` (e is the unit vector along `p - x0_c`). Where the push does overshoot, `p - x0_c - stretch·Δ∥` flips direction, its length becomes `stretch·(Δ·e) - |p - x0_c|`, and the identity no longer holds. `tests/test_reference_point.py` checks it on the non-overshooting pixels only.
 3. Whatever squash removes is replaced by `p`. So the reference point decides what squash does to the image.
 
 ## The current choice
