@@ -251,6 +251,10 @@ negative_rejection_steering/
 └── CONTRIBUTING.md           # This file
 ```
 
+## Design notes
+
+Before changing the guidance math, read [docs/design.md](docs/design.md). It covers the hook contract, the reference-point form and the rules for changing the geometry.
+
 ## Getting Help
 
 - **Issues**: Report bugs or request features via [GitHub Issues](https://github.com/Reithan/negative_rejection_steering/issues)
