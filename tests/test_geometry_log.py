@@ -32,10 +32,17 @@ def setup_module(module):
     global _saved_torch, _saved_nodes_nrs, torch, nrs_module
     _saved_torch = sys.modules.get("torch")
     sys.modules.pop("torch", None)
-    try:
-        import torch as real_torch
-    except ImportError:
-        pytest.skip("real torch unavailable", allow_module_level=True)
+    # Real torch cannot be re-imported once popped from sys.modules (C-extension
+    # re-registration fails), so the first module to load it caches it for the rest.
+    real_torch = sys.modules.get("_nrs_real_torch")
+    if real_torch is None:
+        try:
+            import torch as real_torch
+        except ImportError:
+            pytest.skip("real torch unavailable", allow_module_level=True)
+        sys.modules["_nrs_real_torch"] = real_torch
+    else:
+        sys.modules["torch"] = real_torch
     torch = real_torch
 
     _saved_nodes_nrs = sys.modules.get("NRS.nodes_NRS")
