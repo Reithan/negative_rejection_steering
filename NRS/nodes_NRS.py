@@ -96,7 +96,7 @@ def _geometry_stats(cond_v, uncond_v, skew, stretch, squash):
             flat.mean(),
             flat.min(),
             flat.kthvalue(k).values,
-            (skew * u_rej_c.norm(dim=1, keepdim=True) / clen).flatten().median(),
+            (abs(skew) * u_rej_c.norm(dim=1, keepdim=True) / clen).flatten().median(),
             (abs(stretch) * proj_diff.norm(dim=1, keepdim=True) / clen).flatten().median(),
         ]
     )
