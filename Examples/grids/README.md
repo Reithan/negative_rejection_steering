@@ -2,7 +2,7 @@
 
 Specs for regenerating the NRS example grids (`skew_array.png`, `stretch_array.png`, `squash_matrix.png`) on the current release. Each grid below is a set of values to press go on; nothing here has been run yet.
 
-The sweeps sit around the default (Skew 2, Stretch 4, Squash 0.5) with a plain CFG row beside them. Balanced NRS settings behave close to CFG: at Squash 0, Skew = Stretch = w − 1 matches CFG at scale w to first order, so the CFG row shows what NRS adds beyond a plain guidance scale.
+The sweeps sit around the default (Skew 2, Stretch 4, Squash 0.5) with a plain CFG row beside them. Balanced NRS settings behave close to CFG. At Squash 0, Skew = Stretch = w − 1 is exactly CFG at scale w. More generally, when Skew equals Stretch × (1 − Squash), the result is CFG at scale Skew + 1 to first order (the default 2/4/0.5 sits near CFG 3). The CFG row shows what NRS adds beyond a plain guidance scale.
 
 ## Record for every grid
 
@@ -16,7 +16,7 @@ Write these down for each grid set so the outputs can be compared later:
 - Resolution
 - Positive prompt and negative prompt
 
-Recommended model set: run the full set on an EPS (SDXL-family) checkpoint, a v-prediction checkpoint, and a flow-matching model. The prediction type changes how NRS converts guidance into v-space, so the same numbers can look different across families.
+Recommended model set: run the full set on an EPS (SDXL-family) checkpoint, a v-prediction checkpoint, and a flow-matching model. EPS, v-pred and x0 models share one NRS path and flow models run natively, but the families differ in training and latent channel count, so the same numbers can look different across them.
 
 ## Grid 1: CFG reference row (NRS disabled)
 
