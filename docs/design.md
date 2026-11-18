@@ -91,7 +91,7 @@ Notes:
 
 - Measure the squash lengths in one space. Compute `cond_len` and `nrs_len` from vectors in the same space. 0.6.0 mixed spaces here, and `3d8827f` fixed it.
 - Keep both entry points working. The ComfyUI node and the A1111/Forge script both go through `NRS().patch`. The script calls it directly in `scripts/negative_rejection_steering_script.py`.
-- Handle every prediction type: EPS, V, X0, FLOW, CONST and UNKNOWN. Handle packed multi-stream latents too. `_apply_guidance` runs on one unpacked stream at a time.
+- Handle every prediction type: EPS, V, X0, FLOW (which covers the CONST families) and UNKNOWN. Handle packed multi-stream latents too. `_apply_guidance` runs on one unpacked stream at a time.
 - Write tests against real torch, not stubs. Follow `tests/test_pack_split.py`.
 - Any change to output needs a version bump and a `CHANGELOG.md` entry. Say which models and which settings change, and by how much.
 - State the new `λ(σ)` or the new axis rule in the PR, and add a row to the table above.
