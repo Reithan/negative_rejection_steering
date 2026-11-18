@@ -11,6 +11,7 @@ import sys
 
 import pytest
 
+_REAL_TORCH_KEY = "_nrs_real_torch"
 _saved_torch = None
 _saved_nodes_nrs = None
 torch = None
@@ -32,10 +33,16 @@ def setup_module(module):
     global _saved_torch, _saved_nodes_nrs, torch, nrs_module
     _saved_torch = sys.modules.get("torch")
     sys.modules.pop("torch", None)
-    try:
-        import torch as real_torch
-    except ImportError:
-        pytest.skip("real torch unavailable", allow_module_level=True)
+    # Real torch can only be initialised once per process, so the first test
+    # module to import it parks it under _REAL_TORCH_KEY for later ones to reuse.
+    real_torch = sys.modules.get(_REAL_TORCH_KEY)
+    if real_torch is None:
+        try:
+            import torch as real_torch
+        except ImportError:
+            pytest.skip("real torch unavailable", allow_module_level=True)
+        sys.modules[_REAL_TORCH_KEY] = real_torch
+    sys.modules["torch"] = real_torch
     torch = real_torch
 
     _saved_nodes_nrs = sys.modules.get("NRS.nodes_NRS")
