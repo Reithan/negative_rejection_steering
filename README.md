@@ -36,6 +36,8 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 ![Stretch Example](Examples/stretch_array.png)
 **Squash**
 ![Squash Example](Examples/squash_matrix.png)
+
+*These grids were generated with NRS 0.6.0 on an EPS checkpoint and are due to be regenerated; see [Examples/grids](Examples/grids/README.md).*
 <details>
 <summary><small>Generation details for reproduction</small></summary>
 
