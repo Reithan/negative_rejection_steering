@@ -11,7 +11,7 @@ import sys
 
 import pytest
 
-_REAL_TORCH_KEY = "_nrs_tests_real_torch"
+_REAL_TORCH_KEY = "_nrs_real_torch"
 _saved_torch = None
 _saved_nodes_nrs = None
 torch = None
