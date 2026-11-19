@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- Docs and tooltips: Skew = Stretch = CFG-1 with Squash 0 now says it reproduces CFG up to floating-point rounding, not pixel-for-pixel. In a Forge-Neo test (Euler a, 24 steps), CFG 5 vs NRS 4/4/0 differed in small details, but by less than CFG 5 vs CFG 5.001.
+
 ## [1.1.1] - 2026-11-18
 
 ### Added

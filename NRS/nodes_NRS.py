@@ -164,7 +164,7 @@ class NRS:
                         "min": -30.0,
                         "max": 30.0,
                         "step": 0.01,
-                        "tooltip": "Changes the 'direction' of generation, steering away from negative prompt elements. Skew = Stretch = CFG-1 with Squash 0 reproduces CFG exactly.",
+                        "tooltip": "Changes the 'direction' of generation, steering away from negative prompt elements. Skew = Stretch = CFG-1 with Squash 0 reproduces CFG (up to floating-point rounding).",
                     },
                 ),
                 "stretch": (
@@ -174,7 +174,7 @@ class NRS:
                         "min": -30.0,
                         "max": 30.0,
                         "step": 0.01,
-                        "tooltip": "Intensifies positive prompt elements. Skew = Stretch = CFG-1 with Squash 0 reproduces CFG exactly.",
+                        "tooltip": "Intensifies positive prompt elements. Skew = Stretch = CFG-1 with Squash 0 reproduces CFG (up to floating-point rounding).",
                     },
                 ),
                 "squash": (
