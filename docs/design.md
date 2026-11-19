@@ -87,6 +87,15 @@ Notes:
 - No version was numerically broken. Each map inverts exactly. The versions differ only in geometry.
 - The squash code has not changed since `3d8827f`. The 1.1.0 behavior change comes from `_convert_to_v_space`, which changed the length of the vector squash works on. At high sigma, 1.1.0 vectors are much shorter than the 0.6.0 ones, so squash now acts on skew at every step, not only in late steps. The axis also moved: at high sigma it is now the predicted image `x0_c`, not the per-pixel noise direction.
 
+## Rejected: decoupled squash reference (P2)
+
+Squash is meant to keep the direction that skew and stretch produce and pull the length back towards the length of the positive prediction. The shipped squash does this on the v-space vectors, so its target is the positive prompt's own velocity length. In November 2026 two alternatives were tried on draft PR #53 (closed, not merged), behind an `NRS_SQUASH_REF` switch:
+
+- `raw`: squash against the length of the hook vector `x - x0_c` instead. For VP models that vector is the predicted noise scaled by σ. It is nearly the same length for both prompts, so the squash scale stayed at 0.97–1.00 in every sigma band even at squash 1. Burn went down, but squash's detail effect also disappeared. Measured on one v-pred ztSNR model in Forge-Neo (Euler a, 24 steps).
+- `guidance`: shrink only the part skew and stretch add on top of cond, towards `|cond - uncond|`. Cond itself was left alone. This pulls the direction back towards plain cond, which defeats the point of squash. It was reverted before any image test.
+
+The shipped v-space squash stays. For reference, at squash 1 on that model it scaled the result by about 0.2 at σ > 10, 0.45–0.7 at 1 < σ ≤ 10 and 0.85–0.96 at σ ≤ 1. Squash acts mostly in the early, high-noise steps.
+
 ## Rules for changing the geometry
 
 - Measure the squash lengths in one space. Compute `cond_len` and `nrs_len` from vectors in the same space. 0.6.0 mixed spaces here, and `3d8827f` fixed it.
