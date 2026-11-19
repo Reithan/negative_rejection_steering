@@ -1,6 +1,17 @@
 # Example grid specs
 
-Specs for regenerating the NRS example grids (`skew_array.png`, `stretch_array.png`, `squash_matrix.png`) on the current release. Each grid below is a set of values to press go on; nothing here has been run yet.
+Specs for regenerating the NRS example grids on the current release. Each grid below is a set of values to press go on.
+
+## Current grids (NRS 1.1.1)
+
+The README shows `cfg_array.jpg`, `skew_array.jpg`, `stretch_array.jpg` and `squash_array.jpg`, made on 2026-11-19 with one EPS checkpoint (generation details are in the main README). The values used differ from the specs below. The sweeps were widened to reach the burn edge:
+
+- CFG (NRS off): 1, 3, 7, 11, 16, 21.
+- Skew: 0, 2, 6, 10, 15, 20 at Stretch 4, Squash 0.5.
+- Stretch: 0, 2, 6, 10, 15, 20 at Skew 4, Squash 0.5.
+- Squash: 0, 0.25, 0.5, 0.75, 0.85, 1.0 at Skew 10, Stretch 10.
+
+Only the EPS family has been run. Contributions on other families are welcome; see the help-wanted issues for Flux ([#59](https://github.com/Reithan/negative_rejection_steering/issues/59)) and Wan ([#60](https://github.com/Reithan/negative_rejection_steering/issues/60)).
 
 The sweeps sit around the default (Skew 2, Stretch 4, Squash 0.5) with a plain CFG row beside them. Balanced NRS settings behave close to CFG. At Squash 0, Skew = Stretch = w − 1 is the NRS counterpart of CFG at scale w: the same math, giving near-identical but not pixel-identical images. More generally, when Skew equals Stretch × (1 − Squash), the result behaves roughly like CFG at scale Skew + 1 (the default 2/4/0.5 is roughly comparable to CFG 3). The CFG row shows what NRS adds beyond a plain guidance scale.
 

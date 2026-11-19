@@ -30,30 +30,35 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 </details>
 
 ## Examples of NRS Effects
-**Skew**
-![Skew Example](Examples/skew_array.png)
-**Stretch**
-![Stretch Example](Examples/stretch_array.png)
-**Squash**
-![Squash Example](Examples/squash_matrix.png)
+Each grid is one row of images at the same seed; the swept value increases left to right.
 
-> [!NOTE]
-> These grids were generated with NRS 0.6.0 on an EPS checkpoint and are due to be regenerated; see [Examples/grids](Examples/grids/README.md).
+**CFG** (NRS off) at CFG 1, 3, 7, 11, 16, 21
+![CFG Example](Examples/cfg_array.jpg)
+**Skew** 0, 2, 6, 10, 15, 20 (Stretch 4, Squash 0.5)
+![Skew Example](Examples/skew_array.jpg)
+**Stretch** 0, 2, 6, 10, 15, 20 (Skew 4, Squash 0.5)
+![Stretch Example](Examples/stretch_array.jpg)
+**Squash** 0.0, 0.25, 0.5, 0.75, 0.85, 1.0 (Skew 10, Stretch 10)
+![Squash Example](Examples/squash_array.jpg)
+
 <details>
 <summary><small>Generation details</small></summary>
 
-| Prompt     | |
+| Setting    | |
 | ---------- | --- |
-| Tool       | [Stable Diffusion WebUI reForge](https://github.com/Panchovix/stable-diffusion-webui-reForge) |
-| Sampler    | DPM++ 2M |
-| Scheduler  | Align Your Steps |
-| Steps      | 25 |
-| Dimensions | 912 x 624 |
-| Seed       | `1334103348` |
-| Model      | [Lobotomized Mix v1.5](https://civitai.com/models/1144932) |
-| Embeddings | [Lazy Embeddings for ALL illustrious NoobAI...](https://civitai.com/models/1302719), [Smooth Embeddings](https://civitai.com/models/1065154) |
-| Positive   | lazypos, [Smooth_Quality\|SmoothNoob_Quality], BREAK<br>very awa, masterpiece, best quality, year 2024, newest, highres, absurdres,<br>1girl, samurai archer, cyberpunk cityscape, rain-soaked rooftop, neon reflection puddles, volumetric mist,<br>photorealistic, digital art,<br>dramatic rim lighting, shallow depth of field, low angle viewpoint |
-| Negative   | lazyloli, lazynsfw, BREAK<br>lazyhand, SmoothNegative_Hands-neg, BREAK<br>[Smooth_Negative-neg\|SmoothNoob_Negative-neg], BREAK<br>lowres, worst quality, worst aesthetic, bad quality, jpeg artifacts, scan artifacts,<br>blurry, deformed anatomy, bad hands, extra fingers, missing fingers, mutated hands,<br>watermark, logo, text, nsfw |
+| NRS        | 1.1.1 |
+| Tool       | [Stable Diffusion WebUI Forge - Neo](https://github.com/Haoming02/sd-webui-forge-classic/tree/neo) |
+| Sampler    | Euler a |
+| Scheduler  | SGM Uniform |
+| Steps      | 24 |
+| Dimensions | 896 x 1152 |
+| Seed       | `642844283` |
+| Model      | Retrordinary v1.0 (Illustrious-based, EPS prediction) |
+| VAE        | DjMilXLVAE_DminVAE |
+| Positive   | 1girl, samurai archer, cyberpunk cityscape, rain-soaked rooftop, neon reflection puddles, volumetric mist, photorealistic, digital art, dramatic rim lighting, shallow depth of field, low angle viewpoint, general, sfw, |
+| Negative   | lowres, worst quality, worst aesthetic, bad quality, jpeg artifacts, scan artifacts, blurry, deformed anatomy, bad hands, extra fingers, missing fingers, mutated hands, watermark, logo, text, sensitive, questionable, explicit, nsfw, child, |
+
+Grids were downscaled to 512 px wide per image to keep the repository small.
 </details>
 
 ### Explanation of Effects
