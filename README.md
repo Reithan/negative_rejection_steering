@@ -66,7 +66,7 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 
 ## Beginner How-To
 1. Set Skew and Stretch to your normal CFG Scale minus 1, and set Squash to 0.0 (for example, CFG 7 becomes 6/6/0). This is the NRS counterpart of your CFG setting and gives a near-identical starting point.<br>
-*Expect near-identical images, **not** pixel-identical ones. NRS does the same math as CFG in a different order, and the tiny rounding differences can change small details (in testing, less than changing CFG by 0.001). Don't try to recreate a CFG image exactly with NRS.*<br>
+*Expect near-identical images, **not** pixel-identical ones. NRS does the same math as CFG in a different order, and the tiny rounding differences can change small details and sometimes the composition slightly. How much depends on your model, prompt and settings; in testing it was about the same as, or less than, changing CFG by 0.001. Don't try to recreate a CFG image exactly with NRS.*<br>
 *Alternatively, start from the default of 2/4/0.5, which is roughly comparable to CFG 3 (not an exact match).*
 2. Test some outputs. At the CFG-minus-1 setting they should look very close to your normal CFG outputs. From there, change one knob at a time.
 3. Adjust Skew to change the intensity of your outputs adherence to your positive and negative prompts. This primarily effects composition of the output.
