@@ -47,19 +47,20 @@ def _pack_latents(streams):
 
 
 # EXPERIMENTAL (P2 A/B): not for release; remove or promote before merging.
-# NRS_SQUASH_REF=raw makes squash measure lengths against the raw hook vector (x - x0_c) instead of
-# the v-space cond. Unset or "v" is the shipped behavior. See docs/experiments/decoupled-squash.md.
+# NRS_SQUASH_REF=guidance makes squash limit only the NRS push (stretch/skew terms added on top of
+# cond) to the length of cond - uncond, leaving cond itself untouched. Unset or "v" is the shipped
+# behavior. See docs/experiments/decoupled-squash.md.
 _SQUASH_REF_ENV = "NRS_SQUASH_REF"
 _squash_ref_warned = set()
 
 
 def _squash_ref_mode():
-    """Return "v" (default) or "raw" from NRS_SQUASH_REF; unknown values warn once and fall back to "v"."""
+    """Return "v" (default) or "guidance" from NRS_SQUASH_REF; unknown values warn once and fall back to "v"."""
     val = os.environ.get(_SQUASH_REF_ENV, "")
     if val in ("", "v"):
         return "v"
-    if val == "raw":
-        return "raw"
+    if val == "guidance":
+        return "guidance"
     if val not in _squash_ref_warned:
         _squash_ref_warned.add(val)
         logging.warning(f"NRS: unknown {_SQUASH_REF_ENV}={val!r}; using default 'v'")
@@ -384,17 +385,17 @@ class NRS:
         x_final = skewed * squash_scale
 
         squash_ref = _squash_ref_mode()
-        raw_scale = None
-        if squash_ref == "raw":
-            # EXPERIMENTAL: finalize without squash, then squash in x - x0 space so both lengths
-            # are measured in the same space. Identity conversion makes this equal to the default for FLOW.
-            skewed_h = self._finalize_from_v_space(x_orig, skewed, sig_root, sigma, pred_type)
-            raw_len = cond.norm(dim=1, keepdim=True)
-            h_len = skewed_h.norm(dim=1, keepdim=True) + eps
-            raw_scale = (1 - squash) + squash * (raw_len / h_len)
-            result = skewed_h * raw_scale
-        else:
-            result = self._finalize_from_v_space(x_orig, x_final, sig_root, sigma, pred_type)
+        alt_scale = None
+        if squash_ref == "guidance":
+            # EXPERIMENTAL: squash only the NRS push (stretch*proj_diff - skew*u_rej_c), towards the
+            # length of cond - uncond. Both are differences, so the v-space affine map cancels in the
+            # ratio and the result does not depend on the reference point. Squash 0 equals the default.
+            push = skewed - nrs_cond
+            delta_len = (nrs_cond - nrs_uncond).norm(dim=1, keepdim=True)
+            push_len = push.norm(dim=1, keepdim=True) + eps
+            alt_scale = (1 - squash) + squash * (delta_len / push_len)
+            x_final = nrs_cond + push * alt_scale
+        result = self._finalize_from_v_space(x_orig, x_final, sig_root, sigma, pred_type)
 
         target = _geometry_target()
         if target is not None:
@@ -405,7 +406,7 @@ class NRS:
                     (skew, stretch, squash),
                     pred_type,
                     stream,
-                    (squash_ref, raw_scale),
+                    (squash_ref, alt_scale),
                 )
             except Exception as e:  # diagnostics must never abort a generation
                 global _geometry_failed_warned
@@ -419,7 +420,7 @@ class NRS:
         """Emit one JSON line of geometry stats (opt-in via NRS_GEOMETRY_LOG). Never touches the output."""
         x_orig, cond, uncond, nrs_cond, nrs_uncond, sigma = tensors
         skew, stretch, squash = knobs
-        squash_ref, raw_scale = squash_info
+        squash_ref, alt_scale = squash_info
         n = len(_GEOMETRY_KEYS)
         with torch.no_grad():
             parts = [_geometry_stats(nrs_cond, nrs_uncond, skew, stretch, squash)]
@@ -435,8 +436,8 @@ class NRS:
                     off = (lam.float() - 1) * x
                     parts.append(_geometry_stats(off + cond.float(), off + uncond.float(), skew, stretch, squash))
                     names.append(name)
-            if raw_scale is not None:
-                flat = raw_scale.detach().float().flatten()
+            if alt_scale is not None:
+                flat = alt_scale.detach().float().flatten()
                 k = max(1, math.ceil(0.05 * flat.numel()))
                 parts.append(torch.stack([flat.mean(), flat.min(), flat.kthvalue(k).values]))
             parts.append(sigma.flatten()[:1].float())
@@ -452,9 +453,10 @@ class NRS:
             "squash_ref": squash_ref,
             **dict(zip(_GEOMETRY_KEYS, vals[:n])),
         }
-        if raw_scale is not None:
-            raw_vals = vals[n * (1 + len(names)) : -1]
-            record.update(zip(("squash_scale_raw_mean", "squash_scale_raw_min", "squash_scale_raw_p05"), raw_vals))
+        if alt_scale is not None:
+            alt_vals = vals[n * (1 + len(names)) : -1]
+            keys = (f"squash_scale_{squash_ref}_{s}" for s in ("mean", "min", "p05"))
+            record.update(zip(keys, alt_vals))
         if names:
             record["alt"] = {
                 nm: dict(zip(_GEOMETRY_KEYS, vals[n * (i + 1) : n * (i + 2)])) for i, nm in enumerate(names)
