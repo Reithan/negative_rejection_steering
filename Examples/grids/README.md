@@ -2,7 +2,7 @@
 
 Specs for regenerating the NRS example grids (`skew_array.png`, `stretch_array.png`, `squash_matrix.png`) on the current release. Each grid below is a set of values to press go on; nothing here has been run yet.
 
-The sweeps sit around the default (Skew 2, Stretch 4, Squash 0.5) with a plain CFG row beside them. Balanced NRS settings behave close to CFG. At Squash 0, Skew = Stretch = w − 1 is exactly CFG at scale w. More generally, when Skew equals Stretch × (1 − Squash), the result is CFG at scale Skew + 1 to first order (the default 2/4/0.5 sits near CFG 3). The CFG row shows what NRS adds beyond a plain guidance scale.
+The sweeps sit around the default (Skew 2, Stretch 4, Squash 0.5) with a plain CFG row beside them. Balanced NRS settings behave close to CFG. At Squash 0, Skew = Stretch = w − 1 is the NRS counterpart of CFG at scale w: the same math, giving near-identical but not pixel-identical images. More generally, when Skew equals Stretch × (1 − Squash), the result behaves roughly like CFG at scale Skew + 1 (the default 2/4/0.5 is roughly comparable to CFG 3). The CFG row shows what NRS adds beyond a plain guidance scale.
 
 ## Record for every grid
 

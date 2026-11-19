@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [Unreleased]
+
+### Changed
+
+- Docs and tooltips no longer say Skew = Stretch = CFG-1 with Squash 0 "reproduces" CFG "exactly". It is the NRS counterpart of that CFG scale and gives near-identical, not pixel-identical, images. In a Forge-Neo test (Euler a, 24 steps), CFG 5 vs NRS 4/4/0 differed in small details (composition can shift slightly too), by roughly as much as, or less than, CFG 5 vs CFG 5.001.
+
 ## [1.1.1] - 2026-11-18
 
 ### Added
