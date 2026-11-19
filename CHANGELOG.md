@@ -8,7 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Changed
 
-- Docs and tooltips: Skew = Stretch = CFG-1 with Squash 0 now says it reproduces CFG up to floating-point rounding, not pixel-for-pixel. In a Forge-Neo test (Euler a, 24 steps), CFG 5 vs NRS 4/4/0 differed in small details, but by less than CFG 5 vs CFG 5.001.
+- Docs and tooltips no longer say Skew = Stretch = CFG-1 with Squash 0 "reproduces" CFG "exactly". It is the NRS counterpart of that CFG scale and gives near-identical, not pixel-identical, images. In a Forge-Neo test (Euler a, 24 steps), CFG 5 vs NRS 4/4/0 differed in small details, but by less than CFG 5 vs CFG 5.001.
 
 ## [1.1.1] - 2026-11-18
 

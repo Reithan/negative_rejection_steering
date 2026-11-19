@@ -40,7 +40,7 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 > [!NOTE]
 > These grids were generated with NRS 0.6.0 on an EPS checkpoint and are due to be regenerated; see [Examples/grids](Examples/grids/README.md).
 <details>
-<summary><small>Generation details for reproduction</small></summary>
+<summary><small>Generation details</small></summary>
 
 | Prompt     | |
 | ---------- | --- |
@@ -65,9 +65,10 @@ NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidanc
 **Squash** is the speed limit. At 0.0 Squash, each diffusion step receives the full intensity you set from Skew and Stretch, while 1.0 Squash ensures each step has only the original step size output by the model. This setting will only remove intensity unless you have a non-zero Skew value. Squash will 'soften' the effects of Skew and Stretch as it's raised, but the 'removed' Skew and Stretch intensity is replaced by enhanced micro-detailing and 'burn'. Squash should generally be left low and used as a 'finishing' step after dialing in a decent Skew and Stretch value.
 
 ## Beginner How-To
-1. Set Skew and Stretch to your normal CFG Scale minus 1, and set Squash to 0.0. This reproduces CFG (for example, CFG 7 becomes 6/6/0), so you start from a baseline you can check. The math is identical, but NRS computes it in a different order, so tiny rounding differences can change small details, though by less than nudging CFG by 0.001.<br>
+1. Set Skew and Stretch to your normal CFG Scale minus 1, and set Squash to 0.0 (for example, CFG 7 becomes 6/6/0). This is the NRS counterpart of your CFG setting and gives a near-identical starting point.<br>
+*Expect near-identical images, **not** pixel-identical ones. NRS does the same math as CFG in a different order, and the tiny rounding differences can change small details (in testing, less than changing CFG by 0.001). Don't try to recreate a CFG image exactly with NRS.*<br>
 *Alternatively, start from the default of 2/4/0.5, which is roughly comparable to CFG 3 (not an exact match).*
-2. Test some outputs. At the CFG-minus-1 setting they should match your normal CFG outputs. From there, change one knob at a time.
+2. Test some outputs. At the CFG-minus-1 setting they should look very close to your normal CFG outputs. From there, change one knob at a time.
 3. Adjust Skew to change the intensity of your outputs adherence to your positive and negative prompts. This primarily effects composition of the output.
 4. Adjust Stretch to intensify your positive prompt's aspects and colors where they differ from the negative prompt. This primarily effects color and texture.
 5. Adjust Squash to soften Skew and Stretch's effects. The intensity removed from Skew and Stretch will generally become additional micro-detailing and elements.
