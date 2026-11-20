@@ -2,7 +2,7 @@
 
 This note is for contributors who change the guidance math in `NRS/nodes_NRS.py`. It records what the sampler hands to NRS, the one design variable that every shipped version has chosen differently, and the rules for changing it.
 
-Regression tests for the identities below live in `tests/test_reference_point.py` (added in a separate PR).
+Regression tests for the identities below live in `tests/test_reference_point.py`.
 
 ## The hook contract
 
@@ -15,7 +15,15 @@ uncond = x - x0_u
 
 `x` is the noisy latent. `x0_c` and `x0_u` are the denoised predictions for the conditional and unconditional passes. The hook returns a vector `r`, and the sampler treats `x - r` as the guided denoised prediction.
 
-The source is `cfg_function` in ComfyUI `comfy/samplers.py`. Before it calls the hook, ComfyUI has already converted the raw model output to `x0`. Forge and reForge build the same arguments.
+Before it calls the hook, each backend has already converted the raw model output to `x0` (in `calculate_denoised`, which is the same in all three). The hook arguments are built here (checked against each backend's source on 2026-09-02; line-level details drift with upstream changes):
+
+| Backend | File | Hook args |
+|---|---|---|
+| ComfyUI | `comfy/samplers.py`, `cfg_function` | `cond = x - cond_pred`, `uncond = x - uncond_pred`; result read as `x - hook(args)` |
+| Forge | `backend/sampling/sampling_function.py` | same |
+| reForge | `ldm_patched/modules/samplers.py`, `cfg_function` | same, except `uncond` is `None` when `uncond_pred` is `None` (the CFG-1 optimization path) |
+
+NRS reads `args["uncond"]` without a `None` check. `patch` registers the hook with `set_model_sampler_cfg_function(nrs, True)`, which disables the CFG-1 optimization, so reForge should never pass `None`. If a backend ignores that flag, NRS fails on the `None`. A guard is a defensive option, not a fix for an observed bug.
 
 Consequence: EPS, V and X0 stop mattering before NRS runs. The two vectors have the same meaning for all three. Do not apply prediction-type formulas (eps to v, v to eps, and so on) to them. They are not eps or v outputs. They are `x - x0`. Applying those formulas to them produced the 0.5.0 and 0.6.0 conversions, which have no principled reading.
 

@@ -2,12 +2,12 @@
 [![ComfyUI Registry](https://github.com/Reithan/negative_rejection_steering/actions/workflows/publish.yml/badge.svg)](https://registry.comfy.org/nodes/negative_rejection_steering)
 
 # Negative Rejection Steering
-NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidance with a more nuanced and composable steering of the generation process with better mathematical basis.
+NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidance with a more nuanced and composable steering of the generation process with a better mathematical basis.
 
 #### _**TL;DR**_:
 1. CFG is a bad 'knob'
 2. NRS replaces CFG with 3 new knobs.
-3. NRS lets you to create cooler outputs than CFG.
+3. NRS lets you create cooler outputs than CFG.
 
 **Contributing**: See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup and guidelines.
 
@@ -65,7 +65,7 @@ Grids were downscaled to 512 px wide per image to keep the repository small.
 #### Skew
 **Skew** changes the 'direction' of your generation, altering the image generation to 'steer' away from negative prompt elements as they conflict with your positive prompt. Increasing Skew will change scene composition, geometry, and scene elements to ensure that the final image aligns with the intention of your prompt pair.
 #### Stretch
-**Stretch** changes the intensity of generated elements that align more with your positive prompt than the negative. This 'hits the gas' on any elements that are more strongly aligned with your positive prompt than your negative, and 'hit the brakes' on the opposite.
+**Stretch** changes the intensity of generated elements that align more with your positive prompt than the negative. This 'hits the gas' on any elements that are more strongly aligned with your positive prompt than your negative, and 'hits the brakes' on the opposite.
 #### Squash
 **Squash** is the speed limit. At 0.0 Squash, each diffusion step receives the full intensity you set from Skew and Stretch, while 1.0 Squash keeps each step to the speed the model predicted for your positive prompt alone, still pointed in the direction Skew and Stretch chose. Squash works mostly in the early steps, where the image's overall layout forms. This setting will only remove intensity unless you have a non-zero Skew value. Squash will 'soften' the effects of Skew and Stretch as it's raised, but the 'removed' Skew and Stretch intensity is replaced by enhanced micro-detailing and 'burn'. Squash burn looks different from CFG, Skew or Stretch burn: instead of blown-out colors and shapes dissolving into abstraction, it shows up as over-contrasted, poorly blended detailing. Squash should generally be left low and used as a 'finishing' step after dialing in a decent Skew and Stretch value.
 
@@ -74,8 +74,8 @@ Grids were downscaled to 512 px wide per image to keep the repository small.
 *Expect near-identical images, **not** pixel-identical ones. NRS does the same math as CFG in a different order, and the tiny rounding differences can change small details and sometimes the composition slightly. How much depends on your model, prompt and settings; in testing it was about the same as, or less than, changing CFG by 0.001. Don't try to recreate a CFG image exactly with NRS.*<br>
 *Alternatively, start from the default of 2/4/0.5, which is roughly comparable to CFG 3 (not an exact match).*
 2. Test some outputs. At the CFG-minus-1 setting they should look very close to your normal CFG outputs. From there, change one knob at a time.
-3. Adjust Skew to change the intensity of your outputs adherence to your positive and negative prompts. This primarily effects composition of the output.
-4. Adjust Stretch to intensify your positive prompt's aspects and colors where they differ from the negative prompt. This primarily effects color and texture.
+3. Adjust Skew to change the intensity of your output's adherence to your positive and negative prompts. This primarily affects composition of the output.
+4. Adjust Stretch to intensify your positive prompt's aspects and colors where they differ from the negative prompt. This primarily affects color and texture.
 5. Adjust Squash to soften Skew and Stretch's effects. The intensity removed from Skew and Stretch will generally become additional micro-detailing and elements.
 
 > [!TIP]
