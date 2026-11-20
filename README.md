@@ -2,7 +2,7 @@
 [![ComfyUI Registry](https://github.com/Reithan/negative_rejection_steering/actions/workflows/publish.yml/badge.svg)](https://registry.comfy.org/nodes/negative_rejection_steering)
 
 # Negative Rejection Steering
-NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidance with a more nuanced and composable steering of the generation process with better mathematical basis.
+NRS seeks to replace the 'naive' linear interpolation of Classifier Free Guidance with a more nuanced and composable steering of the generation process with a better mathematical basis.
 
 #### _**TL;DR**_:
 1. CFG is a bad 'knob'
